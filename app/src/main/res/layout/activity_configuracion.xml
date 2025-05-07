@@ -7,7 +7,13 @@
     android:padding="24dp">
 
 
-
+        <TextView
+            android:id="@+id/estadoBateria"
+            android:height="92dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Batería: --%"
+            android:textSize="32sp"/>
         <Switch
             android:id="@+id/switch24h"
             android:height="92dp"

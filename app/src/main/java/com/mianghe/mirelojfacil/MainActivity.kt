@@ -1,9 +1,13 @@
 package com.mianghe.mirelojfacil
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.icu.util.Calendar
+import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -14,7 +18,6 @@ import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextClock
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -37,14 +40,12 @@ class MainActivity : AppCompatActivity() {
     private var is24HourFormat = true
     private var isIconoVisible = true
 
-
-
-
     fun iniciarTareaPeriodica() {
         val calendar = Calendar.getInstance()
         val currentSecond = calendar.get(Calendar.SECOND)
         //val currentMillisecond = calendar.get(Calendar.MILLISECOND)
-        val esperaParaSincronizar = TimeUnit.SECONDS.toMillis(60 - currentSecond.toLong())// - currentMillisecond
+        val esperaParaSincronizar =
+            TimeUnit.SECONDS.toMillis(60 - currentSecond.toLong())// - currentMillisecond
         Log.d("location", "$currentSecond - $esperaParaSincronizar")
         getCurrentLocation()
         timer = Timer()
@@ -56,6 +57,8 @@ class MainActivity : AppCompatActivity() {
             getCurrentLocation()
         }
     }
+
+
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -117,7 +120,11 @@ class MainActivity : AppCompatActivity() {
 
 
 
+
     } // onCreate
+
+
+
 
     private fun getCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(
@@ -145,7 +152,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun aplicarColoresHora(colorFondo: Int, colorTexto: Int, textoDia:String) {
+    fun aplicarColoresHora(colorFondo: Int, colorTexto: Int, textoDia: String) {
         val vcMiInfo = findViewById<ConstraintLayout>(R.id.main)
         val txtDia = findViewById<TextClock>(R.id.txtDia)
         val txtFecha = findViewById<TextClock>(R.id.txtFecha)
@@ -160,7 +167,7 @@ class MainActivity : AppCompatActivity() {
         tvEstadoDia.text = textoDia
     }
 
-    fun actualizarIconoMovimiento(colorImagen:Int, imagenDibujo: Drawable?, horaActual: Double) {
+    fun actualizarIconoMovimiento(colorImagen: Int, imagenDibujo: Drawable?, horaActual: Double) {
         val movableImage = findViewById<ImageView>(R.id.iconoMovimiento)
         movableImage.setColorFilter(colorImagen, android.graphics.PorterDuff.Mode.SRC_IN)
         movableImage.alpha = 0.7f
@@ -170,7 +177,7 @@ class MainActivity : AppCompatActivity() {
         val anchoContenedor = iconoMovimientoDia.width
         val anchoImagen = movableImage.width
         val normalizedPosition = horaActual.toFloat().coerceIn(0f, 1f)
-        val newPosition = ((anchoContenedor-anchoImagen) * normalizedPosition).toInt()
+        val newPosition = ((anchoContenedor - anchoImagen) * normalizedPosition).toInt()
         //val margenIzquierdo = (anchoContenedor - anchoImagen) / 2
 
         /*val containerWidth = iconoMovimientoDia.width - movableImage.width
@@ -188,7 +195,7 @@ class MainActivity : AppCompatActivity() {
         val diaActual = calendar.get(Calendar.DAY_OF_MONTH)
         val horaActual = calendar.get(Calendar.HOUR_OF_DAY)
         val minutoActual = calendar.get(Calendar.MINUTE)
-        val laHora:Double = horaANumero(horaActual, minutoActual)
+        val laHora: Double = horaANumero(horaActual, minutoActual)
         //val tvInfo = findViewById<TextView>(R.id.tvInfo)
         val zonaHoraria = Calendar.getInstance().timeZone.id
         val salidaSol = horaSol(anioActual, mesActual, diaActual, longitud, latitud, zonaHoraria, 0)
@@ -196,13 +203,13 @@ class MainActivity : AppCompatActivity() {
         Log.d("location", "Salida Sol $salidaSol")
         Log.d("location", "Ocaso $puestaSol")
 
-        val hora1:Double = salidaSol - (0.5 / 24.0) //Le quitamos media hora
-        val hora2:Double = salidaSol
-        val hora3:Double = 12.0 / 24.0
-        val hora4:Double = 15.5 / 24.0
-        val hora5:Double = puestaSol - (0.5 / 24.0) //Le quitamos media hora
-        val hora6:Double = puestaSol + (0.25 / 24.0) //Le añadimos 1/4 de hora
-        val hora7:Double = 24.0
+        val hora1: Double = salidaSol - (0.5 / 24.0) //Le quitamos media hora
+        val hora2: Double = salidaSol
+        val hora3: Double = 12.0 / 24.0
+        val hora4: Double = 15.5 / 24.0
+        val hora5: Double = puestaSol - (0.5 / 24.0) //Le quitamos media hora
+        val hora6: Double = puestaSol + (0.25 / 24.0) //Le añadimos 1/4 de hora
+        val hora7: Double = 24.0
         //val hora8:Double = 1.0 / 24.0
 
         // Para la barra de colores
@@ -214,13 +221,13 @@ class MainActivity : AppCompatActivity() {
         val view5 = linearLayout.getChildAt(4)
         val view6 = linearLayout.getChildAt(5)
         val view7 = linearLayout.getChildAt(6)
-        setViewWeight(view1, (hora1.toFloat()*100))
-        setViewWeight(view2, ((hora2.toFloat()-hora1.toFloat())*100))
-        setViewWeight(view3, ((hora3.toFloat()-hora2.toFloat())*100))
-        setViewWeight(view4, ((hora4.toFloat()-hora3.toFloat())*100))
-        setViewWeight(view5, ((hora5.toFloat()-hora4.toFloat())*100))
-        setViewWeight(view6, ((hora6.toFloat()-hora5.toFloat())*100))
-        setViewWeight(view7, ((24.0f-hora6.toFloat())*100))
+        setViewWeight(view1, (hora1.toFloat() * 100))
+        setViewWeight(view2, ((hora2.toFloat() - hora1.toFloat()) * 100))
+        setViewWeight(view3, ((hora3.toFloat() - hora2.toFloat()) * 100))
+        setViewWeight(view4, ((hora4.toFloat() - hora3.toFloat()) * 100))
+        setViewWeight(view5, ((hora5.toFloat() - hora4.toFloat()) * 100))
+        setViewWeight(view6, ((hora6.toFloat() - hora5.toFloat()) * 100))
+        setViewWeight(view7, ((24.0f - hora6.toFloat()) * 100))
 
         //val horaSalidaSol = numeroAHora(salidaSol)
         //val horaPuestaSol = numeroAHora(puestaSol)
@@ -239,12 +246,54 @@ class MainActivity : AppCompatActivity() {
 
         // Definimos una lista de rangos horarios
         val rangos = listOf(
-            RangoHorario(hora1, hora2, R.color.fondo_amaneciendo, R.color.texto_amaneciendo, R.string.dia_amaneciendo, R.drawable.icono_semisol),
-            RangoHorario(hora2, hora3, R.color.fondo_porlamanana, R.color.texto_porlamanana, R.string.dia_por_la_manana, R.drawable.icono_sol1),
-            RangoHorario(hora3, hora4, R.color.fondo_mediodia, R.color.texto_mediodia, R.string.dia_mediodia, R.drawable.icono_dia),
-            RangoHorario(hora4, hora5, R.color.fondo_tarde, R.color.texto_tarde, R.string.dia_por_la_tarde, R.drawable.icono_dia),
-            RangoHorario(hora5, hora6, R.color.fondo_anocheciendo, R.color.texto_anocheciendo, R.string.dia_anocheciendo, R.drawable.icono_semisol),
-            RangoHorario(hora6, hora7, R.color.fondo_noche, R.color.texto_noche, R.string.dia_por_la_noche, R.drawable.icono_noche),
+            RangoHorario(
+                hora1,
+                hora2,
+                R.color.fondo_amaneciendo,
+                R.color.texto_amaneciendo,
+                R.string.dia_amaneciendo,
+                R.drawable.icono_semisol
+            ),
+            RangoHorario(
+                hora2,
+                hora3,
+                R.color.fondo_porlamanana,
+                R.color.texto_porlamanana,
+                R.string.dia_por_la_manana,
+                R.drawable.icono_sol1
+            ),
+            RangoHorario(
+                hora3,
+                hora4,
+                R.color.fondo_mediodia,
+                R.color.texto_mediodia,
+                R.string.dia_mediodia,
+                R.drawable.icono_dia
+            ),
+            RangoHorario(
+                hora4,
+                hora5,
+                R.color.fondo_tarde,
+                R.color.texto_tarde,
+                R.string.dia_por_la_tarde,
+                R.drawable.icono_dia
+            ),
+            RangoHorario(
+                hora5,
+                hora6,
+                R.color.fondo_anocheciendo,
+                R.color.texto_anocheciendo,
+                R.string.dia_anocheciendo,
+                R.drawable.icono_semisol
+            ),
+            RangoHorario(
+                hora6,
+                hora7,
+                R.color.fondo_noche,
+                R.color.texto_noche,
+                R.string.dia_por_la_noche,
+                R.drawable.icono_noche
+            ),
             //RangoHorario(0.0, hora8, R.color.fondo_noche, R.color.texto_noche, R.string.dia_por_la_noche, R.drawable.icono_noche)
         )
 
@@ -274,6 +323,7 @@ class MainActivity : AppCompatActivity() {
         )
 
     }
+
     fun setViewWeight(view: View, weight: Float) {
         val params = view.layoutParams as LinearLayout.LayoutParams
         params.weight = weight
@@ -284,8 +334,15 @@ class MainActivity : AppCompatActivity() {
         val view1 = findViewById<View>(R.id.colorBarsContainer)
         val view2 = findViewById<ImageView>(R.id.iconoMovimiento)
 
+
+
         // 1. Inflar el layout del diálogo
         val dialogView = LayoutInflater.from(this).inflate(R.layout.activity_configuracion, null)
+
+        //dialogView.findViewById<TextView>(R.id.estadoBateria2).text = "Bateria: --%"
+        val estadoBateria = dialogView.findViewById<TextView>(R.id.estadoBateria)
+        val batteryPercentage = getBatteryPercentage(this)
+        estadoBateria.text = "Bateria: $batteryPercentage%"
 
         // 2. Obtener referencias a los Switch
         val switch1 = dialogView.findViewById<Switch>(R.id.switch24h)
@@ -299,11 +356,11 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Aceptar") { _, _ ->
                 // Acciones al aceptar
                 if (switch1.isChecked) {
-                        textClock.format12Hour = null // Usar el formato 24h definido en XML
-                        textClock.format24Hour = "H:mm"
-                    } else {
-                        textClock.format12Hour = "h:mm"
-                        textClock.format24Hour = null // Usar el formato 12h definido en XML
+                    textClock.format12Hour = null // Usar el formato 24h definido en XML
+                    textClock.format24Hour = "H:mm"
+                } else {
+                    textClock.format12Hour = "h:mm"
+                    textClock.format24Hour = null // Usar el formato 12h definido en XML
                 }
                 if (!switch2.isChecked) {
                     view1.animate().alpha(0f).setDuration(300).start()
@@ -314,10 +371,25 @@ class MainActivity : AppCompatActivity() {
                 }
 
             }
+
             .setNegativeButton("Cancelar", null)
             .create()
 
         dialog.show()
+
+    }
+
+    private fun getBatteryPercentage(context: Context): Int {
+        val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
+            context.registerReceiver(null, ifilter)
+        }
+
+        val batteryPct: Float? = batteryStatus?.let { intent ->
+            val level: Int = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale: Int = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            level * 100 / scale.toFloat()
+        }
+        return batteryPct?.toInt() ?: 0
     }
 
 }

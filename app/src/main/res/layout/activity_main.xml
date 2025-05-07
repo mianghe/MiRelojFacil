@@ -9,6 +9,11 @@
     android:layout_gravity="center"
     android:layout_centerVertical="true">
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/estadoBateria2"
+        tools:text="Hola"/>
     <TextClock
         android:id="@+id/txtDia"
         android:layout_width="match_parent"
