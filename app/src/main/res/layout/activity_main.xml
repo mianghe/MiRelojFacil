@@ -90,12 +90,21 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/colorBarsContainer">
+        <View
+            android:id="@+id/lineaMovimiento"
+            android:layout_width="match_parent"
+            android:layout_height="2dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginHorizontal="6dp"
+            android:background="#FF0000"
+            android:alpha=".2"/>
         <ImageView
             android:id="@+id/iconoMovimiento"
             android:layout_width="32dp"
             android:layout_height="match_parent"
             android:src="@drawable/icono_noche"
-            android:scaleType="fitCenter"/>
+            android:scaleType="fitCenter" />
+
     </FrameLayout>
     <LinearLayout
         android:id="@+id/colorBarsContainer"

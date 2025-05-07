@@ -30,4 +30,12 @@
             android:text="Ver barra de colores"
             android:textSize="32sp" />
 
+        <Switch
+            android:id="@+id/switchLineaMovimiento"
+            android:height="92dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ver línea de movimiento"
+            android:textSize="32sp" />
+
 </LinearLayout>

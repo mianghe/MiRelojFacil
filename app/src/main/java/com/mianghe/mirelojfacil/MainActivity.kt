@@ -170,7 +170,7 @@ class MainActivity : AppCompatActivity() {
     fun actualizarIconoMovimiento(colorImagen: Int, imagenDibujo: Drawable?, horaActual: Double) {
         val movableImage = findViewById<ImageView>(R.id.iconoMovimiento)
         movableImage.setColorFilter(colorImagen, android.graphics.PorterDuff.Mode.SRC_IN)
-        movableImage.alpha = 0.7f
+        movableImage.alpha = 1f
         movableImage.setImageDrawable(imagenDibujo)
 
         val iconoMovimientoDia = findViewById<FrameLayout>(R.id.iconoMovimientoDia)
@@ -186,6 +186,10 @@ class MainActivity : AppCompatActivity() {
         val layoutParams = movableImage.layoutParams as FrameLayout.LayoutParams
         layoutParams.leftMargin = newPosition//leftMargin
         movableImage.layoutParams = layoutParams
+    }
+    fun actualizarLineaMovimiento(colorLinea: Int) {
+        val lineaMovimiento = findViewById<View>(R.id.lineaMovimiento)
+        lineaMovimiento.setBackgroundColor(colorLinea)
     }
 
     fun actualizarHoras(longitud: Double, latitud: Double) {
@@ -252,7 +256,7 @@ class MainActivity : AppCompatActivity() {
                 R.color.fondo_amaneciendo,
                 R.color.texto_amaneciendo,
                 R.string.dia_amaneciendo,
-                R.drawable.icono_semisol
+                R.drawable.icono_semisol,
             ),
             RangoHorario(
                 hora2,
@@ -314,6 +318,7 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.getColor(this, rango.textoResId),
             getResources().getString(rango.stringResId)
         )
+        actualizarLineaMovimiento(ContextCompat.getColor(this, rango.textoResId),)
 
         // Para el icono de movimiento
         actualizarIconoMovimiento(
@@ -333,6 +338,7 @@ class MainActivity : AppCompatActivity() {
     private fun showConfigDialog() {
         val view1 = findViewById<View>(R.id.colorBarsContainer)
         val view2 = findViewById<ImageView>(R.id.iconoMovimiento)
+        val view3 = findViewById<View>(R.id.lineaMovimiento)
 
 
 
@@ -347,6 +353,7 @@ class MainActivity : AppCompatActivity() {
         // 2. Obtener referencias a los Switch
         val switch1 = dialogView.findViewById<Switch>(R.id.switch24h)
         val switch2 = dialogView.findViewById<Switch>(R.id.switchBarraColores)
+        val switch3 = dialogView.findViewById<Switch>(R.id.switchLineaMovimiento)
         val textClock = findViewById<TextClock>(R.id.txtHora)
 
         // 3. Configurar el diálogo
@@ -363,11 +370,16 @@ class MainActivity : AppCompatActivity() {
                     textClock.format24Hour = null // Usar el formato 12h definido en XML
                 }
                 if (!switch2.isChecked) {
-                    view1.animate().alpha(0f).setDuration(300).start()
+                    view1.animate().alpha(0f).setDuration(1500).start()
                     //view2.animate().alpha(0f).setDuration(300).start()
                 } else {
-                    view1.animate().alpha(0.8f).setDuration(300).start()
+                    view1.animate().alpha(0.8f).setDuration(1500).start()
                     //view2.animate().alpha(1f).setDuration(300).start()
+                }
+                if (!switch3.isChecked) {
+                    view3.animate().alpha(0f).setDuration(1500).start()
+                } else {
+                    view3.animate().alpha(0.3f).setDuration(1500).start()
                 }
 
             }
