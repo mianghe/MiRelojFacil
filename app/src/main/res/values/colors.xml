@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="background_general">#0D1632</color>
+    <color name="fondo_agenda">#F6E294</color>
+    <color name="fondo_amaneciendo">#C07603</color>
+    <color name="fondo_porlamanana">#FAE89C</color>
+    <color name="fondo_mediodia">#FFFFFF</color>
+    <color name="fondo_tarde">#FFC5B1</color>
+    <color name="fondo_anocheciendo">#B7490C</color>
+    <color name="fondo_noche">#000000</color>
+    <color name="fondo_madrugada">#0D1632</color>
+    <color name="texto_amaneciendo">#000000</color>
+    <color name="texto_porlamanana">#000000</color>
+    <color name="texto_mediodia">#000000</color>
+    <color name="texto_tarde">#000000</color>
+    <color name="texto_anocheciendo">#FFFFFF</color>
+    <color name="texto_noche">#FFFFFF</color>
+    <color name="texto_madrugada">#FFFFFF</color>
+    <color name="gris_oscuro">#222222</color>
+</resources>

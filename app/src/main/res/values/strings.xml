@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">MiRelojFacil</string>
+    <string name="dia_amaneciendo">amaneciendo</string>
+    <string name="dia_por_la_manana">por la mañana</string>
+    <string name="dia_mediodia">mediodía</string>
+    <string name="dia_por_la_tarde">por la tarde</string>
+    <string name="dia_anocheciendo">anocheciendo</string>
+    <string name="dia_por_la_noche">por la noche</string>
+    <string name="dia_de_madrugada">de madrugada</string>
+    <string name="boton_configuracion">Configuración</string>
+    <string name="title_activity_configuracion">ConfiguracionActivity</string>
+</resources>
