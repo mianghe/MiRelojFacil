@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
             .build()
 
         val periodicWorkRequest = PeriodicWorkRequestBuilder<BatteryWorker>(
-            1, TimeUnit.MINUTES
+            10, TimeUnit.MINUTES
         )
             .setConstraints(constraints)
             .build()
