@@ -33,6 +33,9 @@ import com.google.android.gms.location.LocationServices
 import java.util.Timer
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
+import androidx.work.*
+import android.app.Application
+import com.mianghe.mirelojfacil.workers.BatteryWorker
 
 class MainActivity : AppCompatActivity() {
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
@@ -97,6 +100,8 @@ class MainActivity : AppCompatActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
 
+        scheduleBatteryMonitoring()
+
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
         iniciarTareaPeriodica()
 
@@ -124,6 +129,26 @@ class MainActivity : AppCompatActivity() {
     } // onCreate
 
 
+    private fun scheduleBatteryMonitoring() {
+        val constraints = Constraints.Builder()
+            .setRequiresBatteryNotLow(false) // Opcional: solo ejecutar si la batería no está baja
+            .setRequiresCharging(false)    // Opcional: solo ejecutar si no está cargando
+            .setRequiredNetworkType(NetworkType.CONNECTED) // Opcional: solo ejecutar si hay conexión a internet
+            .build()
+
+        val periodicWorkRequest = PeriodicWorkRequestBuilder<BatteryWorker>(
+            1, TimeUnit.MINUTES
+        )
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(applicationContext)
+            .enqueueUniquePeriodicWork(
+                "BatteryMonitoring", // Nombre único para la tarea periódica
+                ExistingPeriodicWorkPolicy.KEEP, // O REPLACE si quieres reemplazar la tarea existente
+                periodicWorkRequest
+            )
+    }
 
 
     private fun getCurrentLocation() {
