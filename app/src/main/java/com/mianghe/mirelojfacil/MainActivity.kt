@@ -34,14 +34,17 @@ import java.util.Timer
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
 import androidx.work.*
-import android.app.Application
-import com.mianghe.mirelojfacil.workers.BatteryWorker
+import com.mianghe.mirelojfacil.workers.MedioPlazoWorker
+
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private var timer: Timer? = null
-    private var is24HourFormat = true
-    private var isIconoVisible = true
+    //private var is24HourFormat = true
+    //private var isIconoVisible = true
+
+
 
     fun iniciarTareaPeriodica() {
         val calendar = Calendar.getInstance()
@@ -81,11 +84,13 @@ class MainActivity : AppCompatActivity() {
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
         //getCurrentLocation()
         iniciarTareaPeriodica()
+
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -100,7 +105,7 @@ class MainActivity : AppCompatActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
 
-        scheduleBatteryMonitoring()
+        planificarTareasMedioPlazo()
 
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
         iniciarTareaPeriodica()
@@ -118,6 +123,8 @@ class MainActivity : AppCompatActivity() {
             Log.d("TAG", "Alto: $height px ($heightDp dp)")
         }
 
+
+
         val mainLayout = findViewById<TextClock>(R.id.txtDia)
         mainLayout.setOnClickListener {
             showConfigDialog()
@@ -126,27 +133,29 @@ class MainActivity : AppCompatActivity() {
 
 
 
+
     } // onCreate
 
 
-    private fun scheduleBatteryMonitoring() {
+    // Este es el planificador de tareas a Medio plazo (cada 15 minutos)
+    // De momento se encarga de enviar los datos de la carga de la batería al servidor
+    private fun planificarTareasMedioPlazo() {
         val constraints = Constraints.Builder()
-            .setRequiresBatteryNotLow(false) // Opcional: solo ejecutar si la batería no está baja
-            .setRequiresCharging(false)    // Opcional: solo ejecutar si no está cargando
-            .setRequiredNetworkType(NetworkType.CONNECTED) // Opcional: solo ejecutar si hay conexión a internet
+            .setRequiresBatteryNotLow(false) // Solo ejecutar si la batería no está baja
+            .setRequiredNetworkType(NetworkType.CONNECTED) // Solo ejecutar si hay conexión a internet
             .build()
 
-        val periodicWorkRequest = PeriodicWorkRequestBuilder<BatteryWorker>(
-            10, TimeUnit.MINUTES
+        val medioPlazoWorkRequest = PeriodicWorkRequestBuilder<MedioPlazoWorker>(
+            15, TimeUnit.MINUTES
         )
             .setConstraints(constraints)
             .build()
 
         WorkManager.getInstance(applicationContext)
             .enqueueUniquePeriodicWork(
-                "BatteryMonitoring", // Nombre único para la tarea periódica
+                "TareasMedioPlazo", // Nombre único para la tarea periódica
                 ExistingPeriodicWorkPolicy.KEEP, // O REPLACE si quieres reemplazar la tarea existente
-                periodicWorkRequest
+                medioPlazoWorkRequest
             )
     }
 
@@ -238,8 +247,7 @@ class MainActivity : AppCompatActivity() {
         val hora4: Double = 15.5 / 24.0
         val hora5: Double = puestaSol - (0.5 / 24.0) //Le quitamos media hora
         val hora6: Double = puestaSol + (0.25 / 24.0) //Le añadimos 1/4 de hora
-        val hora7: Double = 24.0
-        //val hora8:Double = 1.0 / 24.0
+        val hora7 = 24.0
 
         // Para la barra de colores
         val linearLayout = findViewById<LinearLayout>(R.id.colorBarsContainer)
@@ -343,7 +351,7 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.getColor(this, rango.textoResId),
             getResources().getString(rango.stringResId)
         )
-        actualizarLineaMovimiento(ContextCompat.getColor(this, rango.textoResId),)
+        actualizarLineaMovimiento(ContextCompat.getColor(this, rango.textoResId))
 
         // Para el icono de movimiento
         actualizarIconoMovimiento(
@@ -362,7 +370,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showConfigDialog() {
         val view1 = findViewById<View>(R.id.colorBarsContainer)
-        val view2 = findViewById<ImageView>(R.id.iconoMovimiento)
+        //val view2 = findViewById<ImageView>(R.id.iconoMovimiento)
         val view3 = findViewById<View>(R.id.lineaMovimiento)
 
 
@@ -428,5 +436,6 @@ class MainActivity : AppCompatActivity() {
         }
         return batteryPct?.toInt() ?: 0
     }
+
 
 }
