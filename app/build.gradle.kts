@@ -59,7 +59,7 @@ dependencies {
 
     implementation(libs.play.services.location)
     //implementation(libs.google.android.gms.location)
-    //implementation ("com.google.android.gms:play-services-location:16.0.0")
+    //implementation ("com.google.android.gms:play-services-location:21.3.0")
     implementation ("com.google.android.material:material:1.12.0")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)

@@ -3,12 +3,10 @@ package com.mianghe.mirelojfacil.workers
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.media.MediaPlayer
 import android.os.BatteryManager
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.mianghe.mirelojfacil.R
 import kotlinx.coroutines.Dispatchers
 import com.mianghe.mirelojfacil.funcionesauxiliares.playOkGoogleCommand
 import kotlinx.coroutines.withContext
@@ -23,7 +21,7 @@ class MedioPlazoWorker(appContext: Context, workerParams: WorkerParameters) :
 
     // Hace el trabajo en segundo plano
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        Log.d("CortoPlazoWorker", "Ejecutando tareas de medio plazo")
+        Log.d("MedioPlazoWorker", "Ejecutando tareas de medio plazo")
         try {
             val batteryLevel = getBatteryLevel()
             sendBatteryLevelToThingSpeak(batteryLevel)
@@ -47,10 +45,13 @@ class MedioPlazoWorker(appContext: Context, workerParams: WorkerParameters) :
 
     // Envía el nivel de batería a ThingSpeak
     private fun sendBatteryLevelToThingSpeak(level: Int) {
-        encenderApagarEnchufe(level)
+        //encenderApagarEnchufe(level)
         if (level != -1) {
+            val field = "field1" // Oscal
+            //val field = "field2" // Android Studio
+            //val field = "field3" // Samsung
             val thingSpeakUrl =
-                "https://api.thingspeak.com/update?api_key=$thingSpeakApiKey&field1=$level"
+                "https://api.thingspeak.com/update?api_key=$thingSpeakApiKey&$field=$level"
             try {
                 val url = URL(thingSpeakUrl)
                 val connection = url.openConnection() as HttpURLConnection

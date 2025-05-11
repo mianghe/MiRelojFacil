@@ -9,6 +9,7 @@ import android.graphics.drawable.Drawable
 import android.icu.util.Calendar
 import android.os.BatteryManager
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -28,14 +29,17 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.mianghe.mirelojfacil.workers.MedioPlazoWorker
 import java.util.Timer
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
-import androidx.work.*
-import com.mianghe.mirelojfacil.workers.MedioPlazoWorker
-
 
 
 class MainActivity : AppCompatActivity() {
@@ -43,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private var timer: Timer? = null
     //private var is24HourFormat = true
     //private var isIconoVisible = true
+    var primeraEjecucion = true
 
 
 
@@ -52,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         //val currentMillisecond = calendar.get(Calendar.MILLISECOND)
         val esperaParaSincronizar =
             TimeUnit.SECONDS.toMillis(60 - currentSecond.toLong())// - currentMillisecond
-        Log.d("location", "$currentSecond - $esperaParaSincronizar")
+        //Log.d("location", "$currentSecond - $esperaParaSincronizar")
         getCurrentLocation()
         timer = Timer()
         timer?.schedule(
@@ -61,9 +66,40 @@ class MainActivity : AppCompatActivity() {
         ) {
             // Aquí va el código de la función que quieres ejecutar
             getCurrentLocation()
+            //encenderPantalla()
+            //Log.d("location", "Tarea periodica cada minuto")
         }
     }
 
+    // Esta función debería forzar el encendido de la pantalla cada minuto
+    // Se podría combinar con configurar la tablet para que se apague automaticamente cada minuto
+    // Así la tablet estaría encendida 1 minuto y apagada otro
+    fun encenderPantalla() {
+        val power: PowerManager = applicationContext.getSystemService(POWER_SERVICE) as PowerManager
+        val isScreenOn: Boolean =power.isInteractive()
+
+        if (!isScreenOn) { //¿La pantalla esta apagada?
+            //La pantalla esta apagada!, se enciende.
+            Log.d("Pantalla", "Pantalla encendida")
+            val wl = power.newWakeLock(
+                PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "myApp:notificationLock"
+            )
+            //android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            wl.acquire(1000)
+            wl.release()
+            //getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            Log.d("Pantalla", "Pantalla apagada")
+            /*val wl: PowerManager.WakeLock = power.newWakeLock(
+            PowerManager.SCREEN_OFF_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "myApp:notificationLock"
+            )
+            wl.acquire(3000)
+            wl.release()*/
+            //getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_OFF);
+        }
+    }
 
 
     override fun onRequestPermissionsResult(
@@ -82,7 +118,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
-        //getCurrentLocation()
+        getCurrentLocation()
         iniciarTareaPeriodica()
 
     }
@@ -105,11 +141,17 @@ class MainActivity : AppCompatActivity() {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
 
+
+
+
+        if (primeraEjecucion) {
+            primeraEjecucion = false
+            fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+            getCurrentLocation()
+            iniciarTareaPeriodica()
+        }
+
         planificarTareasMedioPlazo()
-
-        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
-        iniciarTareaPeriodica()
-
 
         //Obtener el tamaño de la ventana main
         val ventanaPrincipal = findViewById<ConstraintLayout>(R.id.main)
@@ -163,13 +205,15 @@ class MainActivity : AppCompatActivity() {
     private fun getCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(
                 this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+                //Manifest.permission.ACCESS_COARSE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION
             )
             != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(
                 this,
-                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
+                //arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
                 1
             )
             return
