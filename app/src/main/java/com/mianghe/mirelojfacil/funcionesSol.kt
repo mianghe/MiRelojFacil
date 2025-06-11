@@ -32,6 +32,11 @@ fun fechaAExcel(fecha: LocalDate): Double {
     return dias.toDouble()
 }
 
+/*
+Todas las funciones que se usan para el cálculo de la salida y puesta del sol
+están tomadas de NOAA National Oceanic and Atmospheric Administration -
+Global Monitoring Laboratory https://gml.noaa.gov/grad/solcalc/NOAA_Solar_Calculations_day.xls
+ */
 fun getJulianDay(fecha:Double, diferenciaUTC:Int):Double {
     return fecha+2415018.5-diferenciaUTC/24
 }

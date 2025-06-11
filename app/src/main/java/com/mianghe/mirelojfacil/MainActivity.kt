@@ -29,6 +29,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
+import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -37,10 +41,14 @@ import androidx.work.WorkManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.mianghe.mirelojfacil.workers.MedioPlazoWorker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.Timer
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
 
+//singleton
+val Context.dataStore by preferencesDataStore(name = "USER_PREFERENCES")
 
 class MainActivity : AppCompatActivity() {
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
@@ -66,40 +74,10 @@ class MainActivity : AppCompatActivity() {
         ) {
             // Aquí va el código de la función que quieres ejecutar
             getCurrentLocation()
-            //encenderPantalla()
-            //Log.d("location", "Tarea periodica cada minuto")
         }
     }
 
-    // Esta función debería forzar el encendido de la pantalla cada minuto
-    // Se podría combinar con configurar la tablet para que se apague automaticamente cada minuto
-    // Así la tablet estaría encendida 1 minuto y apagada otro
-    fun encenderPantalla() {
-        val power: PowerManager = applicationContext.getSystemService(POWER_SERVICE) as PowerManager
-        val isScreenOn: Boolean =power.isInteractive()
 
-        if (!isScreenOn) { //¿La pantalla esta apagada?
-            //La pantalla esta apagada!, se enciende.
-            Log.d("Pantalla", "Pantalla encendida")
-            val wl = power.newWakeLock(
-                PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                "myApp:notificationLock"
-            )
-            //android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-            wl.acquire(1000)
-            wl.release()
-            //getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        } else {
-            Log.d("Pantalla", "Pantalla apagada")
-            /*val wl: PowerManager.WakeLock = power.newWakeLock(
-            PowerManager.SCREEN_OFF_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-            "myApp:notificationLock"
-            )
-            wl.acquire(3000)
-            wl.release()*/
-            //getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_OFF);
-        }
-    }
 
 
     override fun onRequestPermissionsResult(
@@ -166,7 +144,7 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-
+        //Al pulsar en el día de la semana se abre el cuadro de diálogo de configuración
         val mainLayout = findViewById<TextClock>(R.id.txtDia)
         mainLayout.setOnClickListener {
             showConfigDialog()
@@ -417,8 +395,7 @@ class MainActivity : AppCompatActivity() {
         //val view2 = findViewById<ImageView>(R.id.iconoMovimiento)
         val view3 = findViewById<View>(R.id.lineaMovimiento)
 
-
-
+        
         // 1. Inflar el layout del diálogo
         val dialogView = LayoutInflater.from(this).inflate(R.layout.activity_configuracion, null)
 
@@ -431,6 +408,8 @@ class MainActivity : AppCompatActivity() {
         val switch1 = dialogView.findViewById<Switch>(R.id.switch24h)
         val switch2 = dialogView.findViewById<Switch>(R.id.switchBarraColores)
         val switch3 = dialogView.findViewById<Switch>(R.id.switchLineaMovimiento)
+
+
         val textClock = findViewById<TextClock>(R.id.txtHora)
 
         // 3. Configurar el diálogo
@@ -458,7 +437,13 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     view3.animate().alpha(0.3f).setDuration(1500).start()
                 }
-
+                lifecycleScope.launch(Dispatchers.IO) {
+                    guardarValoresPreferencias(
+                        switch1.isChecked,
+                        switch2.isChecked,
+                        switch3.isChecked
+                    )
+                }
             }
 
             .setNegativeButton("Cancelar", null)
@@ -466,6 +451,14 @@ class MainActivity : AppCompatActivity() {
 
         dialog.show()
 
+    }
+
+    private suspend fun guardarValoresPreferencias(sw24h: Boolean, swbarrascolores: Boolean, swlineamovimiento: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[booleanPreferencesKey("sw24h")] = sw24h
+            preferences[booleanPreferencesKey("swbarrascolores")] = swbarrascolores
+            preferences[booleanPreferencesKey("swlineamovimiento")] = swlineamovimiento
+        }
     }
 
     private fun getBatteryPercentage(context: Context): Int {

@@ -9,11 +9,6 @@
     android:layout_gravity="center"
     android:layout_centerVertical="true">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:id="@+id/estadoBateria2"
-        tools:text="Hola"/>
     <TextClock
         android:id="@+id/txtDia"
         android:layout_width="match_parent"
@@ -22,7 +17,7 @@
         android:gravity="center"
         android:format12Hour="cccc"
         android:format24Hour="cccc"
-        android:textSize="84sp"
+        android:textSize="100sp"
         android:textStyle="bold"
         android:textAlignment="center"
         app:layout_constraintBottom_toTopOf="@id/tvEstadoDia"
@@ -38,7 +33,7 @@
         android:fontFamily="sans-serif"
         tools:text="@string/dia_por_la_manana"
         android:textColor="@color/white"
-        android:textSize="52sp"
+        android:textSize="80sp"
         android:textAlignment="center"
         app:layout_constraintTop_toBottomOf="@id/txtDia"
         app:layout_constraintBottom_toTopOf="@id/txtHora"/>
@@ -49,7 +44,7 @@
         android:layout_height="0dp"
         android:layout_marginLeft="16dp"
         android:layout_marginRight="16dp"
-        android:autoSizeMaxTextSize="320sp"
+        android:autoSizeMaxTextSize="180sp"
         android:autoSizeMinTextSize="84sp"
         android:autoSizeStepGranularity="1sp"
         android:autoSizeTextType="uniform"

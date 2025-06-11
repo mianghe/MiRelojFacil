@@ -24,7 +24,8 @@ class MedioPlazoWorker(appContext: Context, workerParams: WorkerParameters) :
         Log.d("MedioPlazoWorker", "Ejecutando tareas de medio plazo")
         try {
             val batteryLevel = getBatteryLevel()
-            sendBatteryLevelToThingSpeak(batteryLevel)
+            //sendBatteryLevelToThingSpeak(batteryLevel)
+            //Podemos aprovechar aquí para enviar mediante la API el estado de la batería al servidor
             Result.success()
         } catch (e: Exception) {
             Log.e("MedioPlazoWorker", "Error during battery check or data sending", e)

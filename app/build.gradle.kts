@@ -66,6 +66,10 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
+    //Para el DataStore
+    implementation ("androidx.datastore:datastore-preferences:1.0.0")
+    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.9.1")
+
     //implementation(libs.androidx.work.runtime.ktx)
     implementation("androidx.work:work-runtime-ktx:2.10.1")
 
