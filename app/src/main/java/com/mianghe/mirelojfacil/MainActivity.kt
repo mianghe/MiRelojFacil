@@ -9,10 +9,11 @@ import android.graphics.drawable.Drawable
 import android.icu.util.Calendar
 import android.os.BatteryManager
 import android.os.Bundle
-import android.os.PowerManager
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -31,6 +32,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
@@ -42,43 +44,48 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.mianghe.mirelojfacil.workers.MedioPlazoWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Timer
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
 
-//singleton
+//singleton para DataStore
 val Context.dataStore by preferencesDataStore(name = "USER_PREFERENCES")
+
+// Claves para DataStore
+val PREF_24H_FORMATO = booleanPreferencesKey("sw24h")
+val PREF_BARRAS_COLORES = booleanPreferencesKey("swbarrascolores")
+val PREF_LINEA_MOVIMIENTO = booleanPreferencesKey("swlineamovimiento")
+val PREF_EMAIL = stringPreferencesKey("email")
+val PREF_PASSWORD = stringPreferencesKey("password")
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private var timer: Timer? = null
-    //private var is24HourFormat = true
-    //private var isIconoVisible = true
     var primeraEjecucion = true
 
-
+    // Referencias a las vistas del reloj para facilitar el acceso
+    private lateinit var textClockHora: TextClock
+    private lateinit var colorBarsContainer: LinearLayout
+    private lateinit var lineaMovimiento: View
 
     fun iniciarTareaPeriodica() {
         val calendar = Calendar.getInstance()
         val currentSecond = calendar.get(Calendar.SECOND)
-        //val currentMillisecond = calendar.get(Calendar.MILLISECOND)
         val esperaParaSincronizar =
-            TimeUnit.SECONDS.toMillis(60 - currentSecond.toLong())// - currentMillisecond
-        //Log.d("location", "$currentSecond - $esperaParaSincronizar")
+            TimeUnit.SECONDS.toMillis(60 - currentSecond.toLong())
         getCurrentLocation()
         timer = Timer()
         timer?.schedule(
             delay = esperaParaSincronizar, // Ejecutar la primera vez inmediatamente
             period = 60 * 1000 // Ejecutar cada 60 segundos (1 minuto)
         ) {
-            // Aquí va el código de la función que quieres ejecutar
+            //Funciones que se ejecutan periodicamente cada 60 segundos
             getCurrentLocation()
         }
     }
-
-
-
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -98,7 +105,6 @@ class MainActivity : AppCompatActivity() {
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
         getCurrentLocation()
         iniciarTareaPeriodica()
-
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,19 +120,22 @@ class MainActivity : AppCompatActivity() {
 
         val windowInsetsController =
             WindowCompat.getInsetsController(window, window.decorView)
-        // Configuración del comportamiento del sistema de barras de estado ocultas.
+        // Configuración del comportamiento del sistema de barras de estado ocultas
         windowInsetsController.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
 
-
-
+        // Inicializar referencias a las vistas
+        textClockHora = findViewById(R.id.txtHora)
+        colorBarsContainer = findViewById(R.id.colorBarsContainer)
+        lineaMovimiento = findViewById(R.id.lineaMovimiento)
 
         if (primeraEjecucion) {
             primeraEjecucion = false
             fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
             getCurrentLocation()
             iniciarTareaPeriodica()
+            loadPreferences() // Cargar las preferencias al inicio
         }
 
         planificarTareasMedioPlazo()
@@ -134,31 +143,22 @@ class MainActivity : AppCompatActivity() {
         //Obtener el tamaño de la ventana main
         val ventanaPrincipal = findViewById<ConstraintLayout>(R.id.main)
         ventanaPrincipal.post {
-            val width = ventanaPrincipal.width   // Ancho en píxeles
-            val height = ventanaPrincipal.height // Alto en píxeles
-            //Convertir a dp (densidad independiente)
+            val width = ventanaPrincipal.width
+            val height = ventanaPrincipal.height
             val widthDp = width / resources.displayMetrics.density
             val heightDp = height / resources.displayMetrics.density
             Log.d("TAG", "Ancho: $width px ($widthDp dp)")
             Log.d("TAG", "Alto: $height px ($heightDp dp)")
         }
 
-
         //Al pulsar en el día de la semana se abre el cuadro de diálogo de configuración
         val mainLayout = findViewById<TextClock>(R.id.txtDia)
         mainLayout.setOnClickListener {
             showConfigDialog()
         }
-
-
-
-
-
     } // onCreate
 
-
     // Este es el planificador de tareas a Medio plazo (cada 15 minutos)
-    // De momento se encarga de enviar los datos de la carga de la batería al servidor
     private fun planificarTareasMedioPlazo() {
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(false) // Solo ejecutar si la batería no está baja
@@ -174,11 +174,10 @@ class MainActivity : AppCompatActivity() {
         WorkManager.getInstance(applicationContext)
             .enqueueUniquePeriodicWork(
                 "TareasMedioPlazo", // Nombre único para la tarea periódica
-                ExistingPeriodicWorkPolicy.KEEP, // O REPLACE si quieres reemplazar la tarea existente
+                ExistingPeriodicWorkPolicy.KEEP,
                 medioPlazoWorkRequest
             )
     }
-
 
     private fun getCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(
@@ -230,21 +229,19 @@ class MainActivity : AppCompatActivity() {
         movableImage.setImageDrawable(imagenDibujo)
 
         val iconoMovimientoDia = findViewById<FrameLayout>(R.id.iconoMovimientoDia)
-        val anchoContenedor = iconoMovimientoDia.width
-        val anchoImagen = movableImage.width
-        val normalizedPosition = horaActual.toFloat().coerceIn(0f, 1f)
-        val newPosition = ((anchoContenedor - anchoImagen) * normalizedPosition).toInt()
-        //val margenIzquierdo = (anchoContenedor - anchoImagen) / 2
+        iconoMovimientoDia.post { // Asegurarse de que las dimensiones estén disponibles
+            val anchoContenedor = iconoMovimientoDia.width
+            val anchoImagen = movableImage.width
+            val normalizedPosition = horaActual.toFloat().coerceIn(0f, 1f)
+            val newPosition = ((anchoContenedor - anchoImagen) * normalizedPosition).toInt()
 
-        /*val containerWidth = iconoMovimientoDia.width - movableImage.width
-        val leftMargin = (containerWidth * horaActual).toInt()*/
-
-        val layoutParams = movableImage.layoutParams as FrameLayout.LayoutParams
-        layoutParams.leftMargin = newPosition//leftMargin
-        movableImage.layoutParams = layoutParams
+            val layoutParams = movableImage.layoutParams as FrameLayout.LayoutParams
+            layoutParams.leftMargin = newPosition
+            movableImage.layoutParams = layoutParams
+        }
     }
+
     fun actualizarLineaMovimiento(colorLinea: Int) {
-        val lineaMovimiento = findViewById<View>(R.id.lineaMovimiento)
         lineaMovimiento.setBackgroundColor(colorLinea)
     }
 
@@ -256,22 +253,19 @@ class MainActivity : AppCompatActivity() {
         val horaActual = calendar.get(Calendar.HOUR_OF_DAY)
         val minutoActual = calendar.get(Calendar.MINUTE)
         val laHora: Double = horaANumero(horaActual, minutoActual)
-        //val tvInfo = findViewById<TextView>(R.id.tvInfo)
         val zonaHoraria = Calendar.getInstance().timeZone.id
         val salidaSol = horaSol(anioActual, mesActual, diaActual, longitud, latitud, zonaHoraria, 0)
         val puestaSol = horaSol(anioActual, mesActual, diaActual, longitud, latitud, zonaHoraria, 1)
-        Log.d("location", "Salida Sol $salidaSol")
-        Log.d("location", "Ocaso $puestaSol")
 
         val hora1: Double = salidaSol - (0.5 / 24.0) //Le quitamos media hora
         val hora2: Double = salidaSol
         val hora3: Double = 12.0 / 24.0
         val hora4: Double = 15.5 / 24.0
         val hora5: Double = puestaSol - (0.5 / 24.0) //Le quitamos media hora
-        val hora6: Double = puestaSol + (0.25 / 24.0) //Le añadimos 1/4 de hora
+        val hora6: Double = puestaSol + (0.25 / 24.0) //Le añadimos un cuarto de hora
         val hora7 = 24.0
 
-        // Para la barra de colores
+        //Para la barra de colores
         val linearLayout = findViewById<LinearLayout>(R.id.colorBarsContainer)
         val view1 = linearLayout.getChildAt(0)
         val view2 = linearLayout.getChildAt(1)
@@ -290,8 +284,6 @@ class MainActivity : AppCompatActivity() {
 
         //val horaSalidaSol = numeroAHora(salidaSol)
         //val horaPuestaSol = numeroAHora(puestaSol)
-
-        //tvInfo.text = "Longitud: $longitud / Latitud: $latitud / Zona Horaria: $zonaHoraria / Salida Sol: $horaSalidaSol / Puesta Sol: $horaPuestaSol"
 
         // Definimos una data class para representar cada rango horario
         data class RangoHorario(
@@ -353,7 +345,6 @@ class MainActivity : AppCompatActivity() {
                 R.string.dia_por_la_noche,
                 R.drawable.icono_noche
             ),
-            //RangoHorario(0.0, hora8, R.color.fondo_noche, R.color.texto_noche, R.string.dia_por_la_noche, R.drawable.icono_noche)
         )
 
         // Buscamos el primer rango que coincida
@@ -371,7 +362,7 @@ class MainActivity : AppCompatActivity() {
         aplicarColoresHora(
             ContextCompat.getColor(this, rango.fondoResId),
             ContextCompat.getColor(this, rango.textoResId),
-            getResources().getString(rango.stringResId)
+            resources.getString(rango.stringResId)
         )
         actualizarLineaMovimiento(ContextCompat.getColor(this, rango.textoResId))
 
@@ -381,7 +372,6 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.getDrawable(this, rango.imagenMovimiento),
             laHora
         )
-
     }
 
     fun setViewWeight(view: View, weight: Float) {
@@ -391,81 +381,178 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showConfigDialog() {
-        val view1 = findViewById<View>(R.id.colorBarsContainer)
-        //val view2 = findViewById<ImageView>(R.id.iconoMovimiento)
-        val view3 = findViewById<View>(R.id.lineaMovimiento)
+        // Creamos un LinearLayout para contener todos los elementos del diálogo
+        val dialogLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                resources.getDimensionPixelSize(R.dimen.dialog_padding),
+                resources.getDimensionPixelSize(R.dimen.dialog_padding),
+                resources.getDimensionPixelSize(R.dimen.dialog_padding),
+                resources.getDimensionPixelSize(R.dimen.dialog_padding)
+            )
+        }
 
-        
-        // 1. Inflar el layout del diálogo
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.activity_configuracion, null)
+        // TextView para el estado de la batería
+        val estadoBateria = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = resources.getDimensionPixelSize(R.dimen.dialog_margin_bottom)
+            }
+            text = "Bateria: ${getBatteryPercentage(this@MainActivity)}%"
+        }
+        dialogLayout.addView(estadoBateria)
 
-        //dialogView.findViewById<TextView>(R.id.estadoBateria2).text = "Bateria: --%"
-        val estadoBateria = dialogView.findViewById<TextView>(R.id.estadoBateria)
-        val batteryPercentage = getBatteryPercentage(this)
-        estadoBateria.text = "Bateria: $batteryPercentage%"
+        // Switch para formato de 24h
+        val switch24h = Switch(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "Formato 24 horas"
+        }
+        dialogLayout.addView(switch24h)
 
-        // 2. Obtener referencias a los Switch
-        val switch1 = dialogView.findViewById<Switch>(R.id.switch24h)
-        val switch2 = dialogView.findViewById<Switch>(R.id.switchBarraColores)
-        val switch3 = dialogView.findViewById<Switch>(R.id.switchLineaMovimiento)
+        // Switch para barra de colores
+        val switchBarraColores = Switch(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "Mostrar barra de colores"
+        }
+        dialogLayout.addView(switchBarraColores)
 
+        // Switch para línea de movimiento
+        val switchLineaMovimiento = Switch(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "Mostrar línea de movimiento"
+        }
+        dialogLayout.addView(switchLineaMovimiento)
 
-        val textClock = findViewById<TextClock>(R.id.txtHora)
+        // EditText para Email
+        val editTextEmail = EditText(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = resources.getDimensionPixelSize(R.dimen.dialog_margin_top)
+            }
+            hint = "Email"
+            inputType = android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        }
+        dialogLayout.addView(editTextEmail)
 
-        // 3. Configurar el diálogo
+        // EditText para Contraseña
+        val editTextPassword = EditText(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            hint = "Contraseña"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        dialogLayout.addView(editTextPassword)
+
+        // Cargar el estado actual de las preferencias para inicializar los switches y los EditText
+        lifecycleScope.launch(Dispatchers.Main) {
+            dataStore.data.first().let { preferences ->
+                switch24h.isChecked = preferences[PREF_24H_FORMATO] ?: true
+                switchBarraColores.isChecked = preferences[PREF_BARRAS_COLORES] ?: true
+                switchLineaMovimiento.isChecked = preferences[PREF_LINEA_MOVIMIENTO] ?: true
+                editTextEmail.setText(preferences[PREF_EMAIL] ?: "")
+                editTextPassword.setText(preferences[PREF_PASSWORD] ?: "")
+
+                // Aplicar el formato de hora y visibilidad inmediatamente al abrir el diálogo
+                aplicarFormatoTiempo(switch24h.isChecked)
+                aplicarVisibilidadBarraColores(switchBarraColores.isChecked)
+                aplicarVisibilidadLineaMovimiento(switchLineaMovimiento.isChecked)
+            }
+        }
+
         val dialog = AlertDialog.Builder(this)
             .setTitle("Configuración")
-            .setView(dialogView)
+            .setView(dialogLayout) // Usamos el LinearLayout creado programáticamente
             .setPositiveButton("Aceptar") { _, _ ->
                 // Acciones al aceptar
-                if (switch1.isChecked) {
-                    textClock.format12Hour = null // Usar el formato 24h definido en XML
-                    textClock.format24Hour = "H:mm"
-                } else {
-                    textClock.format12Hour = "h:mm"
-                    textClock.format24Hour = null // Usar el formato 12h definido en XML
-                }
-                if (!switch2.isChecked) {
-                    view1.animate().alpha(0f).setDuration(1500).start()
-                    //view2.animate().alpha(0f).setDuration(300).start()
-                } else {
-                    view1.animate().alpha(0.8f).setDuration(1500).start()
-                    //view2.animate().alpha(1f).setDuration(300).start()
-                }
-                if (!switch3.isChecked) {
-                    view3.animate().alpha(0f).setDuration(1500).start()
-                } else {
-                    view3.animate().alpha(0.3f).setDuration(1500).start()
-                }
+                val is24hChecked = switch24h.isChecked
+                val isColorBarsChecked = switchBarraColores.isChecked
+                val isLineMovementChecked = switchLineaMovimiento.isChecked
+                val email = editTextEmail.text.toString()
+                val password = editTextPassword.text.toString()
+
+                aplicarFormatoTiempo(is24hChecked)
+                aplicarVisibilidadBarraColores(isColorBarsChecked)
+                aplicarVisibilidadLineaMovimiento(isLineMovementChecked)
+
                 lifecycleScope.launch(Dispatchers.IO) {
-                    guardarValoresPreferencias(
-                        switch1.isChecked,
-                        switch2.isChecked,
-                        switch3.isChecked
+                    savePreferences(
+                        is24hChecked,
+                        isColorBarsChecked,
+                        isLineMovementChecked,
+                        email,
+                        password
                     )
                 }
             }
-
             .setNegativeButton("Cancelar", null)
             .create()
 
         dialog.show()
-
     }
 
-    private suspend fun guardarValoresPreferencias(sw24h: Boolean, swbarrascolores: Boolean, swlineamovimiento: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[booleanPreferencesKey("sw24h")] = sw24h
-            preferences[booleanPreferencesKey("swbarrascolores")] = swbarrascolores
-            preferences[booleanPreferencesKey("swlineamovimiento")] = swlineamovimiento
+    // Funciones para aplicar los cambios en la UI
+    private fun aplicarFormatoTiempo(is24Hour: Boolean) {
+        if (is24Hour) {
+            textClockHora.format12Hour = null
+            textClockHora.format24Hour = "H:mm"
+        } else {
+            textClockHora.format12Hour = "h:mm"
+            textClockHora.format24Hour = null
         }
+    }
+
+    private fun aplicarVisibilidadBarraColores(isVisible: Boolean) {
+        if (!isVisible) {
+            colorBarsContainer.animate().alpha(0f).setDuration(1500).start()
+        } else {
+            colorBarsContainer.animate().alpha(0.8f).setDuration(1500).start()
+        }
+    }
+
+    private fun aplicarVisibilidadLineaMovimiento(isVisible: Boolean) {
+        if (!isVisible) {
+            lineaMovimiento.animate().alpha(0f).setDuration(1500).start()
+        } else {
+            lineaMovimiento.animate().alpha(0.3f).setDuration(1500).start()
+        }
+    }
+
+    private suspend fun savePreferences(
+        is24h: Boolean,
+        isColorBars: Boolean,
+        isLineMovement: Boolean,
+        email: String,
+        password: String
+    ) {
+        dataStore.edit { preferences ->
+            preferences[PREF_24H_FORMATO] = is24h
+            preferences[PREF_BARRAS_COLORES] = isColorBars
+            preferences[PREF_LINEA_MOVIMIENTO] = isLineMovement
+            preferences[PREF_EMAIL] = email
+            preferences[PREF_PASSWORD] = password
+        }
+        Log.d("DataStore", "Preferencias guardadas: 24h=$is24h, BarrasColores=$isColorBars, LineaMovimiento=$isLineMovement, Email=$email, Password=$password")
     }
 
     private fun getBatteryPercentage(context: Context): Int {
         val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
             context.registerReceiver(null, ifilter)
         }
-
         val batteryPct: Float? = batteryStatus?.let { intent ->
             val level: Int = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
             val scale: Int = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
@@ -474,5 +561,22 @@ class MainActivity : AppCompatActivity() {
         return batteryPct?.toInt() ?: 0
     }
 
+    // Función para cargar las preferencias guardadas al iniciar la actividad
+    private fun loadPreferences() {
+        lifecycleScope.launch(Dispatchers.Main) {
+            dataStore.data.first().let { preferences ->
+                val is24h = preferences[PREF_24H_FORMATO] ?: true
+                val isColorBars = preferences[PREF_BARRAS_COLORES] ?: true
+                val isLineMovement = preferences[PREF_LINEA_MOVIMIENTO] ?: true
+                val email = preferences[PREF_EMAIL] ?: ""
+                val password = preferences[PREF_PASSWORD] ?: ""
 
+                aplicarFormatoTiempo(is24h)
+                aplicarVisibilidadBarraColores(isColorBars)
+                aplicarVisibilidadLineaMovimiento(isLineMovement)
+
+                Log.d("DataStore", "Preferencias cargadas al inicio: 24h=$is24h, BarrasColores=$isColorBars, LineaMovimiento=$isLineMovement, Email=$email, Password=$password")
+            }
+        }
+    }
 }
