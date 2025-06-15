@@ -6,4 +6,6 @@
 
     <dimen name="dialog_margin_top">16dp</dimen>
 
+    <dimen name="min_panel_width">64dp</dimen>
+
 </resources>

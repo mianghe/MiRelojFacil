@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ActividadDao {
 
-    @Query("SELECT * FROM actividades ORDER BY fechaAplicacion, horaAplicacion")
+    @Query("SELECT * FROM actividades ORDER BY horaAplicacion")
     fun getAllActividades(): Flow<List<ActividadEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) // Si existe por PK, lo reemplaza

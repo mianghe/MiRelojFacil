@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.drawable.Drawable
 import android.icu.util.Calendar
 import android.os.BatteryManager
@@ -12,6 +13,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -86,10 +88,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var colorBarsContainer: LinearLayout
     private lateinit var lineaMovimiento: View
 
-    // NUEVAS PROPIEDADES PARA RECYCLERVIEW
+    // PROPIEDADES PARA RECYCLERVIEW
     private lateinit var recyclerViewActividades: RecyclerView
     private lateinit var actividadAdapter: ActividadAdapter
     private lateinit var appDatabase: AppDatabase // Instancia de la base de datos
+
+    private lateinit var ivSyncActivities: ImageView
+
+    // REFERENCIA AL PANEL IZQUIERDO
+    private lateinit var leftPanel: ConstraintLayout
 
     fun iniciarTareaPeriodica() {
         val calendar = Calendar.getInstance()
@@ -136,6 +143,10 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
 
         setContentView(R.layout.activity_main)
+
+        // Mantener la pantalla encendida
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_root_layout)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -163,13 +174,34 @@ class MainActivity : AppCompatActivity() {
         actividadAdapter = ActividadAdapter(emptyList()) // Inicializa con lista vacía
         recyclerViewActividades.adapter = actividadAdapter
 
+        // Obtener referencia al panel izquierdo
+        leftPanel = findViewById(R.id.left_panel)
+
+        // Configurar ImageView de sincronización
+        ivSyncActivities = findViewById(R.id.iv_sync_activities) // Obtener referencia al nuevo ImageView
+        ivSyncActivities.setOnClickListener {
+            performSyncOperation() // Llamar a la nueva función para la sincronización
+        }
+
         // *** OBSERVAMOS EL FLOW DE LA BASE DE DATOS ROOM ***
         lifecycleScope.launch {
             appDatabase.actividadDao().getAllActividades().collect { actividades ->
-                // Este bloque se ejecutará cada vez que los datos en la tabla 'actividades' cambien
                 withContext(Dispatchers.Main) {
                     actividadAdapter.updateActividades(actividades)
                     Log.d("MainActivity", "RecyclerView actualizado por Flow de DB: ${actividades.size} actividades.")
+                    // *** APLICAR LÓGICA DE ANCHO DEL PANEL IZQUIERDO SOLO SI ESTAMOS EN LANDSCAPE ***
+                    val orientation = resources.configuration.orientation
+                    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                        updateLeftPanelWidth(actividades.isEmpty())
+                    } else {
+                        // En Portrait, dejamos que el XML haga su trabajo.
+                        // Solo aseguramos que RecyclerView esté oculto si el panel debería estarlo.
+                        if (actividades.isEmpty()) {
+                            recyclerViewActividades.visibility = View.GONE
+                        } else {
+                            recyclerViewActividades.visibility = View.VISIBLE
+                        }
+                    }
                 }
             }
         }
@@ -212,6 +244,60 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }*/
+
+    // NUEVA FUNCIÓN PARA AJUSTAR EL ANCHO DEL PANEL IZQUIERDO
+    private fun updateLeftPanelWidth(isEmpty: Boolean) {
+        val params = leftPanel.layoutParams as LinearLayout.LayoutParams
+        if (isEmpty) {
+            // Panel izquierdo solo para el icono de sincronización
+            params.width = resources.getDimensionPixelSize(R.dimen.min_panel_width) // Define esta dimensión
+            params.weight = 0f // No ocupa peso, solo su ancho fijo
+            recyclerViewActividades.visibility = View.GONE // Ocultar RecyclerView si está vacío
+            Log.d("MainActivity", "Panel izquierdo reducido: actividades vacías.")
+        } else {
+            // Panel izquierdo ocupa la mitad de la pantalla
+            params.width = 0 // layout_width=0dp para que layout_weight funcione
+            params.weight = 1f // Ocupa el 50% del ancho
+            recyclerViewActividades.visibility = View.VISIBLE // Mostrar RecyclerView
+            Log.d("MainActivity", "Panel izquierdo expandido: actividades presentes.")
+        }
+        leftPanel.layoutParams = params // Aplicar los nuevos parámetros
+    }
+
+    // Función que encapsula la lógica de sincronización para ser reutilizada
+    private fun performSyncOperation() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val preferences = dataStore.data.first()
+            val currentUuid = preferences[PREF_UUID]
+            val currentEmail = preferences[PREF_EMAIL]
+            val currentPassword = preferences[PREF_PASSWORD]
+
+            if (currentUuid.isNullOrEmpty() || currentEmail.isNullOrEmpty() || currentPassword.isNullOrEmpty()) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Error: UUID, email o contraseña no configurados.", Toast.LENGTH_LONG).show()
+                }
+                Log.w("MainActivity", "No se pudo sincronizar: email o contraseña faltan o son incorrectos.")
+                return@launch
+            }
+
+            withContext(Dispatchers.Main) {
+                Toast.makeText(this@MainActivity, "Iniciando sincronización...", Toast.LENGTH_SHORT).show()
+            }
+
+            val actividades = fetchActividadesFromApi(applicationContext, currentUuid, currentEmail, currentPassword)
+
+            withContext(Dispatchers.Main) {
+                if (actividades != null) {
+                    Toast.makeText(this@MainActivity, "Sincronización completada. ${actividades.size} mensajes recibidos.", Toast.LENGTH_LONG).show()
+                    Log.d("MainActivity", "Actividades sincronizadas exitosamente: $actividades")
+                    // El RecyclerView se actualizará automáticamente a través del Flow que ya lo observa.
+                } else {
+                    Toast.makeText(this@MainActivity, "Fallo al sincronizar mensajes. Verifique conexión y credenciales.", Toast.LENGTH_LONG).show()
+                    Log.e("MainActivity", "Fallo al sincronizar actividades.")
+                }
+            }
+        }
+    }
 
     // Este es el planificador de tareas a Medio plazo (cada 15 minutos)
     private fun planificarTareasMedioPlazo() {
@@ -276,6 +362,11 @@ class MainActivity : AppCompatActivity() {
         txtHora.setTextColor(colorTexto)
         tvEstadoDia.setTextColor(colorTexto)
         tvEstadoDia.text = textoDia
+
+        // Actualizar el color del icono de sincronización
+        if (::ivSyncActivities.isInitialized) {
+            ivSyncActivities.setColorFilter(colorTexto, android.graphics.PorterDuff.Mode.SRC_IN)
+        }
     }
 
     fun actualizarIconoMovimiento(colorImagen: Int, imagenDibujo: Drawable?, horaActual: Double) {
@@ -530,7 +621,8 @@ class MainActivity : AppCompatActivity() {
         dialogLayout.addView(editTextPassword)
 
         // *** Botón "Sincronizar mensajes" ***
-        val btnSyncMessages = Button(this).apply {
+        //Eliminado porque es redundate, ya tenemos el icono en el panel izquierdo
+        /*val btnSyncMessages = Button(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -541,45 +633,10 @@ class MainActivity : AppCompatActivity() {
             text = "Sincronizar mensajes"
             setOnClickListener {
                 // Al pulsar, obtenemos las credenciales y el UUID para llamar a la API directamente
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val preferences = dataStore.data.first()
-                    val currentUuid = preferences[PREF_UUID]
-                    val currentEmail = preferences[PREF_EMAIL]
-                    val currentPassword = preferences[PREF_PASSWORD]
-
-                    if (currentUuid.isNullOrEmpty() || currentEmail.isNullOrEmpty() || currentPassword.isNullOrEmpty()) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(this@MainActivity, "Error: UUID, email o contraseña no configurados.", Toast.LENGTH_LONG).show()
-                        }
-                        Log.w("MainActivity", "No se pudo sincronizar: UUID, email o contraseña faltan.")
-                        return@launch
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(this@MainActivity, "Iniciando sincronización...", Toast.LENGTH_SHORT).show()
-                    }
-
-                    //Llama a la API y guarda la información en ROOM
-                    val actividades = fetchActividadesFromApi(applicationContext, currentUuid, currentEmail, currentPassword) //
-
-                    withContext(Dispatchers.Main) {
-                        if (actividades != null) {
-                            Toast.makeText(this@MainActivity, "Sincronización completada. ${actividades.size} mensajes recibidos.", Toast.LENGTH_LONG).show()
-                            Log.d("MainActivity", "Actividades sincronizadas exitosamente: $actividades")
-                            //PALAUI
-                            // Aquí obtener los datos de la DB para mostrar
-                            // Por ejemplo: val actividadesDB = AppDatabase.getDatabase(applicationContext).actividadDao().getAllActividades()
-                            // y actualizar UI con ellos.
-                            //loadActividadesFromDatabase(applicationContext, actividadAdapter)
-                        } else {
-                            Toast.makeText(this@MainActivity, "Fallo al sincronizar mensajes. Verifique conexión y credenciales.", Toast.LENGTH_LONG).show()
-                            Log.e("MainActivity", "Fallo al sincronizar actividades desde el diálogo.")
-                        }
-                    }
-                }
+                performSyncOperation() // Llama a la función de sincronización
             }
         }
-        dialogLayout.addView(btnSyncMessages)
+        dialogLayout.addView(btnSyncMessages)*/
         // **********************************
 
         // Cargar el estado actual de las preferencias para inicializar los switches y los EditText

@@ -2,24 +2,35 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginStart="24dp"
+    android:layout_marginEnd="24dp"
+    android:layout_marginBottom="24dp"
+    android:background="@drawable/fondo_actividad"
     android:orientation="vertical"
-    android:padding="8dp"
-    android:layout_marginBottom="4dp"
-    android:background="#1AFFFFFF"> <TextView
-    android:id="@+id/tv_item_mensaje"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:textStyle="bold"
-    android:textSize="18sp"
-    android:textColor="@color/white"
-    android:text="Mensaje de la actividad"/>
+    android:padding="24dp">
 
-    <TextView
-        android:id="@+id/tv_item_fecha_hora"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="14sp"
-        android:textColor="@android:color/darker_gray"
-        android:text="Fecha: DD-MM-AAAA Hora: HH:MM"/>
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
+        <TextView
+            android:id="@+id/tv_item_hora"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:text="HH:MM"
+            android:textColor="@color/fondo_madrugada"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/tv_item_mensaje"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Mensaje de la actividad"
+            android:textColor="@color/gris_oscuro"
+            android:textSize="28sp"/>
+    </LinearLayout>
 </LinearLayout>
