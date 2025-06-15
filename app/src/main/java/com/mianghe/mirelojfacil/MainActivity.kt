@@ -55,6 +55,14 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
 
+// NUEVAS IMPORTACIONES PARA ROOM Y RECYCLERVIEW
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.mianghe.mirelojfacil.adapters.ActividadAdapter
+import com.mianghe.mirelojfacil.database.AppDatabase
+import com.mianghe.mirelojfacil.database.ActividadEntity
+//import com.mianghe.mirelojfacil.funcionesauxiliares.loadActividadesFromDatabase
+
 //singleton para DataStore
 val Context.dataStore by preferencesDataStore(name = "USER_PREFERENCES")
 
@@ -77,6 +85,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textClockHora: TextClock
     private lateinit var colorBarsContainer: LinearLayout
     private lateinit var lineaMovimiento: View
+
+    // NUEVAS PROPIEDADES PARA RECYCLERVIEW
+    private lateinit var recyclerViewActividades: RecyclerView
+    private lateinit var actividadAdapter: ActividadAdapter
+    private lateinit var appDatabase: AppDatabase // Instancia de la base de datos
 
     fun iniciarTareaPeriodica() {
         val calendar = Calendar.getInstance()
@@ -112,6 +125,10 @@ class MainActivity : AppCompatActivity() {
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
         getCurrentLocation()
         iniciarTareaPeriodica()
+        // Cuando la actividad vuelve a estar visible, podemos recargar las actividades de la DB
+        /*lifecycleScope.launch {
+            loadActividadesFromDatabase(applicationContext, actividadAdapter)
+        }*/
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,7 +136,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
 
         setContentView(R.layout.activity_main)
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_root_layout)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
@@ -137,6 +154,26 @@ class MainActivity : AppCompatActivity() {
         colorBarsContainer = findViewById(R.id.colorBarsContainer)
         lineaMovimiento = findViewById(R.id.lineaMovimiento)
 
+        // Inicializar Room database
+        appDatabase = AppDatabase.getDatabase(applicationContext)
+
+        // Configurar RecyclerView
+        recyclerViewActividades = findViewById(R.id.recyclerViewActividades)
+        recyclerViewActividades.layoutManager = LinearLayoutManager(this)
+        actividadAdapter = ActividadAdapter(emptyList()) // Inicializa con lista vacía
+        recyclerViewActividades.adapter = actividadAdapter
+
+        // *** OBSERVAMOS EL FLOW DE LA BASE DE DATOS ROOM ***
+        lifecycleScope.launch {
+            appDatabase.actividadDao().getAllActividades().collect { actividades ->
+                // Este bloque se ejecutará cada vez que los datos en la tabla 'actividades' cambien
+                withContext(Dispatchers.Main) {
+                    actividadAdapter.updateActividades(actividades)
+                    Log.d("MainActivity", "RecyclerView actualizado por Flow de DB: ${actividades.size} actividades.")
+                }
+            }
+        }
+
         if (primeraEjecucion) {
             primeraEjecucion = false
             fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
@@ -148,7 +185,7 @@ class MainActivity : AppCompatActivity() {
         planificarTareasMedioPlazo()
 
         //Obtener el tamaño de la ventana main
-        val ventanaPrincipal = findViewById<ConstraintLayout>(R.id.main)
+        val ventanaPrincipal = findViewById<LinearLayout>(R.id.main_root_layout)
         ventanaPrincipal.post {
             val width = ventanaPrincipal.width
             val height = ventanaPrincipal.height
@@ -164,6 +201,17 @@ class MainActivity : AppCompatActivity() {
             showConfigDialog()
         }
     } // onCreate
+
+    // Función para cargar actividades de la base de datos y actualizar el RecyclerView
+    /*private fun loadActividadesFromDatabase() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val actividades = appDatabase.actividadDao().getAllActividades()
+            withContext(Dispatchers.Main) {
+                actividadAdapter.updateActividades(actividades)
+                Log.d("MainActivity", "Actividades cargadas desde DB: ${actividades.size}")
+            }
+        }
+    }*/
 
     // Este es el planificador de tareas a Medio plazo (cada 15 minutos)
     private fun planificarTareasMedioPlazo() {
@@ -215,7 +263,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun aplicarColoresHora(colorFondo: Int, colorTexto: Int, textoDia: String) {
-        val vcMiInfo = findViewById<ConstraintLayout>(R.id.main)
+        val vcMiInfo = findViewById<LinearLayout>(R.id.main_root_layout)
+        //val vcMiInfo = findViewById<ConstraintLayout>(R.id.right_panel)
         val txtDia = findViewById<TextClock>(R.id.txtDia)
         val txtFecha = findViewById<TextClock>(R.id.txtFecha)
         val txtHora = findViewById<TextClock>(R.id.txtHora)
@@ -510,13 +559,18 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this@MainActivity, "Iniciando sincronización...", Toast.LENGTH_SHORT).show()
                     }
 
-                    val actividades = fetchActividadesFromApi(currentUuid, currentEmail, currentPassword)
+                    //Llama a la API y guarda la información en ROOM
+                    val actividades = fetchActividadesFromApi(applicationContext, currentUuid, currentEmail, currentPassword) //
 
                     withContext(Dispatchers.Main) {
                         if (actividades != null) {
                             Toast.makeText(this@MainActivity, "Sincronización completada. ${actividades.size} mensajes recibidos.", Toast.LENGTH_LONG).show()
                             Log.d("MainActivity", "Actividades sincronizadas exitosamente: $actividades")
-                            // Aquí actualizar la UI con los mensajes si es necesario
+                            //PALAUI
+                            // Aquí obtener los datos de la DB para mostrar
+                            // Por ejemplo: val actividadesDB = AppDatabase.getDatabase(applicationContext).actividadDao().getAllActividades()
+                            // y actualizar UI con ellos.
+                            //loadActividadesFromDatabase(applicationContext, actividadAdapter)
                         } else {
                             Toast.makeText(this@MainActivity, "Fallo al sincronizar mensajes. Verifique conexión y credenciales.", Toast.LENGTH_LONG).show()
                             Log.e("MainActivity", "Fallo al sincronizar actividades desde el diálogo.")

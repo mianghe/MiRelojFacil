@@ -6,6 +6,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Base64
 import android.util.Log
+import androidx.lifecycle.lifecycleScope
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.mianghe.mirelojfacil.PREF_EMAIL
@@ -16,9 +17,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import com.mianghe.mirelojfacil.PREF_UUID // Importa la clave del UUID
 import com.mianghe.mirelojfacil.dataStore // Importa la extensión de DataStore
+//import com.mianghe.mirelojfacil.funcionesauxiliares.loadActividadesFromDatabase
 import com.mianghe.mirelojfacil.models.Actividad // Importa tu nueva data class
 import com.mianghe.mirelojfacil.network.fetchActividadesFromApi
 import kotlinx.coroutines.flow.first // Para obtener el primer valor del Flow de DataStore
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json // Para el parser JSON
 import kotlinx.serialization.decodeFromString // Función de extensión para decodificar JSON
 
@@ -53,13 +56,15 @@ class MedioPlazoWorker(appContext: Context, workerParams: WorkerParameters) :
             return@withContext Result.failure()
         }
 
-        // *** Llamar a la función externa para obtener las actividades ***
-        val actividades = fetchActividadesFromApi(uuid, email, password)
+        //Llama a la API y guarda la información en ROOM
+        val actividades = fetchActividadesFromApi(applicationContext, uuid, email, password)
 
         if (actividades != null) {
             Log.d("MedioPlazoWorker", "Sincronización de actividades exitosa. Total: ${actividades.size}")
-            // Aquí se puede procesar la lista de actividades obtenida,
-            // por ejemplo, guardarla en una base de datos local.
+            //PALAUI
+            // Aquí obtener los datos de la DB para mostrar
+            // Por ejemplo: val actividadesDB = AppDatabase.getDatabase(applicationContext).actividadDao().getAllActividades()
+            // y actualizar UI con ellos.
             Result.success()
         } else {
             Log.e("MedioPlazoWorker", "Fallo en la sincronización de actividades.")
