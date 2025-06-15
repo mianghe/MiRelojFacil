@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -67,11 +69,23 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     //Para el DataStore
-    implementation ("androidx.datastore:datastore-preferences:1.0.0")
-    implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.9.1")
+    //implementation ("androidx.datastore:datastore-preferences:1.1.7")
+    implementation(libs.datastore.preferences)
+    //implementation ("androidx.lifecycle:lifecycle-runtime-ktx:2.9.1")
+    implementation(libs.androidx.lifecycle.runtime.ktx)
 
     //implementation(libs.androidx.work.runtime.ktx)
-    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    //implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Room
+    implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
+    implementation(libs.room.ktx)
+
+    // Para kotlinx.serialization
+    //implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation(libs.kotlinx.serialization.json)
 
 
 

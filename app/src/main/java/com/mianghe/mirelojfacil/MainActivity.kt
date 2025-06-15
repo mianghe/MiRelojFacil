@@ -11,8 +11,8 @@ import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.View
+import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -20,6 +20,7 @@ import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextClock
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -38,15 +39,19 @@ import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.mianghe.mirelojfacil.network.fetchActividadesFromApi
 import com.mianghe.mirelojfacil.workers.MedioPlazoWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Timer
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.schedule
 
@@ -59,12 +64,14 @@ val PREF_BARRAS_COLORES = booleanPreferencesKey("swbarrascolores")
 val PREF_LINEA_MOVIMIENTO = booleanPreferencesKey("swlineamovimiento")
 val PREF_EMAIL = stringPreferencesKey("email")
 val PREF_PASSWORD = stringPreferencesKey("password")
+val PREF_UUID = stringPreferencesKey("app_uuid")
 
 
 class MainActivity : AppCompatActivity() {
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
     private var timer: Timer? = null
     var primeraEjecucion = true
+    private var appUUID: String = ""
 
     // Referencias a las vistas del reloj para facilitar el acceso
     private lateinit var textClockHora: TextClock
@@ -404,6 +411,21 @@ class MainActivity : AppCompatActivity() {
         }
         dialogLayout.addView(estadoBateria)
 
+        // TextView para el UUID de la aplicación
+        val tvUUID = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = resources.getDimensionPixelSize(R.dimen.dialog_margin_bottom)
+            }
+            text = "UUID de la aplicación: $appUUID" // Mostrar el UUID cargado
+            // NOTA: Para ajustes de estilo del texto:
+            // setTextStyle(Typeface.MONOSPACE, Typeface.NORMAL)
+            // setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        }
+        dialogLayout.addView(tvUUID)
+
         // Switch para formato de 24h
         val switch24h = Switch(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -458,6 +480,54 @@ class MainActivity : AppCompatActivity() {
         }
         dialogLayout.addView(editTextPassword)
 
+        // *** Botón "Sincronizar mensajes" ***
+        val btnSyncMessages = Button(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL // Centrar el botón
+                topMargin = resources.getDimensionPixelSize(R.dimen.dialog_margin_top)
+            }
+            text = "Sincronizar mensajes"
+            setOnClickListener {
+                // Al pulsar, obtenemos las credenciales y el UUID para llamar a la API directamente
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val preferences = dataStore.data.first()
+                    val currentUuid = preferences[PREF_UUID]
+                    val currentEmail = preferences[PREF_EMAIL]
+                    val currentPassword = preferences[PREF_PASSWORD]
+
+                    if (currentUuid.isNullOrEmpty() || currentEmail.isNullOrEmpty() || currentPassword.isNullOrEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Error: UUID, email o contraseña no configurados.", Toast.LENGTH_LONG).show()
+                        }
+                        Log.w("MainActivity", "No se pudo sincronizar: UUID, email o contraseña faltan.")
+                        return@launch
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Iniciando sincronización...", Toast.LENGTH_SHORT).show()
+                    }
+
+                    val actividades = fetchActividadesFromApi(currentUuid, currentEmail, currentPassword)
+
+                    withContext(Dispatchers.Main) {
+                        if (actividades != null) {
+                            Toast.makeText(this@MainActivity, "Sincronización completada. ${actividades.size} mensajes recibidos.", Toast.LENGTH_LONG).show()
+                            Log.d("MainActivity", "Actividades sincronizadas exitosamente: $actividades")
+                            // Aquí actualizar la UI con los mensajes si es necesario
+                        } else {
+                            Toast.makeText(this@MainActivity, "Fallo al sincronizar mensajes. Verifique conexión y credenciales.", Toast.LENGTH_LONG).show()
+                            Log.e("MainActivity", "Fallo al sincronizar actividades desde el diálogo.")
+                        }
+                    }
+                }
+            }
+        }
+        dialogLayout.addView(btnSyncMessages)
+        // **********************************
+
         // Cargar el estado actual de las preferencias para inicializar los switches y los EditText
         lifecycleScope.launch(Dispatchers.Main) {
             dataStore.data.first().let { preferences ->
@@ -466,6 +536,8 @@ class MainActivity : AppCompatActivity() {
                 switchLineaMovimiento.isChecked = preferences[PREF_LINEA_MOVIMIENTO] ?: true
                 editTextEmail.setText(preferences[PREF_EMAIL] ?: "")
                 editTextPassword.setText(preferences[PREF_PASSWORD] ?: "")
+                // El UUID ya se cargó en loadPreferences(), solo lo mostramos aquí
+                tvUUID.text = "UUID de la aplicaciión: ${appUUID}"
 
                 // Aplicar el formato de hora y visibilidad inmediatamente al abrir el diálogo
                 aplicarFormatoTiempo(switch24h.isChecked)
@@ -545,6 +617,7 @@ class MainActivity : AppCompatActivity() {
             preferences[PREF_LINEA_MOVIMIENTO] = isLineMovement
             preferences[PREF_EMAIL] = email
             preferences[PREF_PASSWORD] = password
+            // El UUID no se guarda aquí, ya que se genera una vez en loadPreferences y se persiste en ese momento.
         }
         Log.d("DataStore", "Preferencias guardadas: 24h=$is24h, BarrasColores=$isColorBars, LineaMovimiento=$isLineMovement, Email=$email, Password=$password")
     }
@@ -570,6 +643,19 @@ class MainActivity : AppCompatActivity() {
                 val isLineMovement = preferences[PREF_LINEA_MOVIMIENTO] ?: true
                 val email = preferences[PREF_EMAIL] ?: ""
                 val password = preferences[PREF_PASSWORD] ?: ""
+
+                // Cargar el UUID, o generarlo si no existe
+                appUUID = preferences[PREF_UUID] ?: UUID.randomUUID().toString().also { newUuid ->
+                    // Guardar el nuevo UUID generado en DataStore
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        dataStore.edit { prefs ->
+                            //prefs[PREF_UUID] = newUuid
+                            //Hardcodeamos el UUID para pruebas
+                            prefs[PREF_UUID] = "7a59b181-6cd1-4d68-9f57-da9a9467589b"
+                        }
+                    }
+                }
+                Log.d("UUID","UUID: $appUUID")
 
                 aplicarFormatoTiempo(is24h)
                 aplicarVisibilidadBarraColores(isColorBars)
