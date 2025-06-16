@@ -63,6 +63,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.mianghe.mirelojfacil.adapters.ActividadAdapter
 import com.mianghe.mirelojfacil.database.AppDatabase
 import com.mianghe.mirelojfacil.database.ActividadEntity
+import java.time.LocalTime
+
 //import com.mianghe.mirelojfacil.funcionesauxiliares.loadActividadesFromDatabase
 
 //singleton para DataStore
@@ -99,6 +101,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var leftPanel: ConstraintLayout
 
     fun iniciarTareaPeriodica() {
+        timer?.cancel()
+        timer = Timer()
         val calendar = Calendar.getInstance()
         val currentSecond = calendar.get(Calendar.SECOND)
         val esperaParaSincronizar =
@@ -111,6 +115,12 @@ class MainActivity : AppCompatActivity() {
         ) {
             //Funciones que se ejecutan periodicamente cada 60 segundos
             getCurrentLocation()
+            val currentLocalTime = LocalTime.now()
+            runOnUiThread { // Asegurarse de que la actualización del adaptador se haga en el hilo principal
+                if (::actividadAdapter.isInitialized) { // Asegurarse de que el adaptador esté inicializado
+                    actividadAdapter.setActiveHour(currentLocalTime)
+                }
+            }
         }
     }
 
@@ -132,10 +142,18 @@ class MainActivity : AppCompatActivity() {
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
         getCurrentLocation()
         iniciarTareaPeriodica()
-        // Cuando la actividad vuelve a estar visible, podemos recargar las actividades de la DB
-        /*lifecycleScope.launch {
-            loadActividadesFromDatabase(applicationContext, actividadAdapter)
-        }*/
+        runOnUiThread {
+            if (::actividadAdapter.isInitialized) {
+                actividadAdapter.setActiveHour(LocalTime.now())
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Cancelar el único timer al pausar la actividad
+        timer?.cancel()
+        timer = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -210,7 +228,7 @@ class MainActivity : AppCompatActivity() {
             primeraEjecucion = false
             fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
             getCurrentLocation()
-            iniciarTareaPeriodica()
+            //iniciarTareaPeriodica() //se llamará onResume()
             loadPreferences() // Cargar las preferencias al inicio
         }
 
@@ -760,9 +778,9 @@ class MainActivity : AppCompatActivity() {
                     // Guardar el nuevo UUID generado en DataStore
                     lifecycleScope.launch(Dispatchers.IO) {
                         dataStore.edit { prefs ->
-                            //prefs[PREF_UUID] = newUuid
+                            prefs[PREF_UUID] = newUuid
                             //Hardcodeamos el UUID para pruebas
-                            prefs[PREF_UUID] = "7a59b181-6cd1-4d68-9f57-da9a9467589b"
+                            //prefs[PREF_UUID] = "7a59b181-6cd1-4d68-9f57-da9a9467589b"
                         }
                     }
                 }

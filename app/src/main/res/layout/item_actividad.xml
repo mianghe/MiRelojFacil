@@ -7,13 +7,15 @@
     android:layout_marginBottom="24dp"
     android:background="@drawable/fondo_actividad"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="24dp"
+    android:id="@+id/item_root_layout">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:id="@+id/item_actividad_layout">
 
         <TextView
             android:id="@+id/tv_item_hora"
