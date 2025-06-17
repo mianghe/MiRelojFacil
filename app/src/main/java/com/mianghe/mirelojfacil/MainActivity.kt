@@ -63,11 +63,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.mianghe.mirelojfacil.adapters.ActividadAdapter
 import com.mianghe.mirelojfacil.database.AppDatabase
 import com.mianghe.mirelojfacil.database.ActividadEntity
+import com.mianghe.mirelojfacil.network.sendBatteryLevelToApi
+import java.time.LocalDate
 import java.time.LocalTime
-
-//import com.mianghe.mirelojfacil.funcionesauxiliares.loadActividadesFromDatabase
-
-//singleton para DataStore
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import com.mianghe.mirelojfacil.funcionesauxiliares.getBatteryLevel
+//DataStore
 val Context.dataStore by preferencesDataStore(name = "USER_PREFERENCES")
 
 // Claves para DataStore
@@ -99,6 +101,11 @@ class MainActivity : AppCompatActivity() {
 
     // REFERENCIA AL PANEL IZQUIERDO
     private lateinit var leftPanel: ConstraintLayout
+
+    //private val apiDateFormat = DateTimeFormatter.ofPattern("dd-MM-yyyy") // El mismo que en ApiDataSource.kt
+    private val apiTimeFormat = DateTimeFormatter.ofPattern("HH:mm") // Formato de la hora que viene de la API
+
+    private var lastActiveActivityPosition: Int = -1
 
     fun iniciarTareaPeriodica() {
         timer?.cancel()
@@ -198,11 +205,88 @@ class MainActivity : AppCompatActivity() {
         // Configurar ImageView de sincronización
         ivSyncActivities = findViewById(R.id.iv_sync_activities) // Obtener referencia al nuevo ImageView
         ivSyncActivities.setOnClickListener {
-            performSyncOperation() // Llamar a la nueva función para la sincronización
+            lifecycleScope.launch { // Esto inicia una corrutina en el Dispatcher predeterminado (Main)
+                performSyncOperation() // Ahora puedes llamar a performSyncOperation()
+            }
         }
 
         // *** OBSERVAMOS EL FLOW DE LA BASE DE DATOS ROOM ***
         lifecycleScope.launch {
+            appDatabase.actividadDao().getAllActividades().collect { rawActividades ->
+                val filteredActividades = rawActividades.filter { actividad ->
+                    try {
+                        val actividadTime = LocalTime.parse(actividad.horaAplicacion, apiTimeFormat)
+                        val nowTime = LocalTime.now()
+
+                        val actividadMinutesOfDay = actividadTime.toSecondOfDay() / 60
+                        val nowMinutesOfDay = nowTime.toSecondOfDay() / 60
+
+                        val hoursLimit = 7
+                        val showActivity: Boolean
+
+                        if (actividadMinutesOfDay <= nowMinutesOfDay) {
+                            val elapsedHours = (nowMinutesOfDay - actividadMinutesOfDay) / 60
+                            showActivity = elapsedHours < hoursLimit
+                        } else {
+                            showActivity = true
+                        }
+                        showActivity
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error al procesar hora de actividad para filtro de antigüedad: ${actividad.mensaje}. Descartando.", e)
+                        false
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    actividadAdapter.updateActividades(filteredActividades)
+                    Log.d("MainActivity", "RecyclerView actualizado con ${filteredActividades.size} actividades (filtradas por 8h).")
+
+                    // *** Lógica para centrar la actividad activa ***
+                    /*val currentActiveHour = LocalTime.now() // Obtener la hora actual nuevamente para la búsqueda
+                    val layoutManager = recyclerViewActividades.layoutManager as LinearLayoutManager
+                    var newActivePosition = -1
+
+                    for (i in filteredActividades.indices) {
+                        try {
+                            val itemHourParsed = LocalTime.parse(filteredActividades[i].horaAplicacion, apiTimeFormat)
+                            val currentHourTruncated = currentActiveHour.withMinute(0).withSecond(0).withNano(0)
+                            val itemHourTruncated = itemHourParsed.withMinute(0).withSecond(0).withNano(0)
+
+                            if (itemHourTruncated.equals(currentHourTruncated)) {
+                                newActivePosition = i
+                                break // Encontramos la primera actividad para la hora actual
+                            }
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Error al buscar actividad activa para desplazamiento: ${filteredActividades[i].mensaje}", e)
+                        }
+                    }
+
+                    if (newActivePosition != -1 && newActivePosition != lastActiveActivityPosition) { // Solo desplazar si la activa cambió
+                        val itemHeight = layoutManager.findViewByPosition(newActivePosition)?.height ?: 0
+                        val offset = recyclerViewActividades.height / 2 - itemHeight / 2
+                        layoutManager.scrollToPositionWithOffset(newActivePosition, offset)
+                        lastActiveActivityPosition = newActivePosition // Actualizar la última posición activa
+                        Log.d("MainActivity", "Desplazando a la actividad activa en posición: $newActivePosition")
+                    } else if (newActivePosition == -1 && lastActiveActivityPosition != -1) {
+                        // Si ya no hay actividad activa pero antes sí, reseteamos la posición
+                        lastActiveActivityPosition = -1
+                    }*/
+                    // ************************************************
+
+                    val orientation = resources.configuration.orientation
+                    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                        updateLeftPanelWidth(filteredActividades.isEmpty())
+                    } else {
+                        if (filteredActividades.isEmpty()) {
+                            recyclerViewActividades.visibility = View.GONE
+                        } else {
+                            recyclerViewActividades.visibility = View.VISIBLE
+                        }
+                    }
+                }
+            }
+        }
+        /*lifecycleScope.launch {
             appDatabase.actividadDao().getAllActividades().collect { actividades ->
                 withContext(Dispatchers.Main) {
                     actividadAdapter.updateActividades(actividades)
@@ -222,7 +306,76 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-        }
+        }*/
+
+        /*lifecycleScope.launch {
+            appDatabase.actividadDao().getAllActividades().collect { rawActividades ->
+                val filteredActividades = rawActividades.filter { actividad ->
+                    try {
+                        val actividadTime = LocalTime.parse(actividad.horaAplicacion, apiTimeFormat)
+                        val nowTime = LocalTime.now()
+
+                        // Calcular la diferencia en horas solo con el componente de la hora
+                        // Usaremos la diferencia en minutos para mayor precisión
+                        val diffMinutes = ChronoUnit.MINUTES.between(actividadTime, nowTime)
+
+                        // Lógica: La actividad se mostrará si:
+                        // 1. Es una actividad que ya pasó HOY, pero tiene menos de 8 horas de antigüedad.
+                        // 2. Es una actividad que pasará HOY (es futura).
+
+                        // Convertimos a minutos para manejar el "wrap around" de la medianoche
+                        val actividadMinutesOfDay = actividadTime.toSecondOfDay() / 60
+                        val nowMinutesOfDay = nowTime.toSecondOfDay() / 60
+
+                        val hoursLimit = 8 // Límite de 8 horas
+
+                        val showActivity: Boolean
+
+                        // Caso 1: La hora de la actividad es <= a la hora actual
+                        if (actividadMinutesOfDay <= nowMinutesOfDay) {
+                            val elapsedHours = (nowMinutesOfDay - actividadMinutesOfDay) / 60
+                            showActivity = elapsedHours < hoursLimit
+                            Log.d("MainActivityFilter", "Actividad '${actividad.mensaje}' (${actividad.horaAplicacion}). Ahora ${nowTime}. Pasadas: $elapsedHours hrs. Mostrada: $showActivity (Antigüedad).")
+                        } else {
+                            // Caso 2: La hora de la actividad es > a la hora actual (implica que es para mañana o ya se procesó para hoy y no es para hoy)
+                            // En esta lógica de "solo hora", una actividad a las 23:00 de ayer no es "futura" a las 01:00 de hoy.
+                            // Aquí se consideraría "futura" si hoy es Lunes 10:00 y la actividad es Lunes 11:00.
+                            // Pero si hoy es Lunes 10:00 y la actividad es Domingo 23:00, ya no es "futura".
+                            // Dada la ambigüedad, lo más sencillo es considerar que si 'periodicidad' ya dice que es para HOY,
+                            // y la hora de la actividad es posterior a la actual, es "futura" HOY.
+                            // Si periodicidad no es '0000000', entonces la actividad es para HOY.
+                            // Si la hora de la actividad es mayor que la hora actual, la mostramos.
+                            showActivity = true // Mostrar si la hora de la actividad es posterior a la actual
+                            Log.d("MainActivityFilter", "Actividad '${actividad.mensaje}' (${actividad.horaAplicacion}). Ahora ${nowTime}. Considerada futura. Mostrada: $showActivity.")
+                        }
+
+                        // Esto es solo para el filtro de antigüedad en la UI.
+                        // La periodicidad por día de la semana (L-D) o fecha "0000000" ya se aplicó en ApiDataSource.kt.
+                        // Aquí solo decidimos si la actividad "reciente" debe mostrarse por su hora del día.
+                        showActivity
+
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error al procesar hora de actividad para filtro de antigüedad: ${actividad.mensaje}. Descartando.", e)
+                        false // Descartar actividades con errores de hora
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    actividadAdapter.updateActividades(filteredActividades)
+                    Log.d("MainActivity", "RecyclerView actualizado con ${filteredActividades.size} actividades (filtradas por 8h).")
+                    val orientation = resources.configuration.orientation
+                    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                        updateLeftPanelWidth(filteredActividades.isEmpty())
+                    } else {
+                        if (filteredActividades.isEmpty()) {
+                            recyclerViewActividades.visibility = View.GONE
+                        } else {
+                            recyclerViewActividades.visibility = View.VISIBLE
+                        }
+                    }
+                }
+            }
+        }*/
 
         if (primeraEjecucion) {
             primeraEjecucion = false
@@ -283,7 +436,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Función que encapsula la lógica de sincronización para ser reutilizada
-    private fun performSyncOperation() {
+    /*private fun performSyncOperation() {
         lifecycleScope.launch(Dispatchers.IO) {
             val preferences = dataStore.data.first()
             val currentUuid = preferences[PREF_UUID]
@@ -312,6 +465,88 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     Toast.makeText(this@MainActivity, "Fallo al sincronizar mensajes. Verifique conexión y credenciales.", Toast.LENGTH_LONG).show()
                     Log.e("MainActivity", "Fallo al sincronizar actividades.")
+                }
+            }
+        }
+    }*/
+
+    private suspend fun performSyncOperation() {
+        withContext(Dispatchers.IO) {
+            val preferences = try {
+                applicationContext.dataStore.data.first()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error al leer preferencias de DataStore para sincronización: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(applicationContext, "Error al cargar preferencias para sincronizar.", Toast.LENGTH_SHORT).show()
+                }
+                return@withContext
+            }
+
+            val appUuid = preferences[PREF_UUID]
+            val email = preferences[PREF_EMAIL]
+            val password = preferences[PREF_PASSWORD]
+
+            if (appUuid.isNullOrEmpty() || email.isNullOrEmpty() || password.isNullOrEmpty()) {
+                Log.w("MainActivity", "UUID de la app, email o contraseña no encontrados. No se realizará la sincronización.")
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(applicationContext, "Configuración de sincronización incompleta.", Toast.LENGTH_SHORT).show()
+                }
+                return@withContext
+            }
+
+            var activitiesSyncSuccess = false
+            var batteryUpdateSuccess = false
+            var remoteNodeUuid: String? = null
+
+            // 1. Sincronizar Actividades
+            withContext(Dispatchers.Main) {
+                Toast.makeText(applicationContext, "Sincronizando actividades...", Toast.LENGTH_SHORT).show()
+            }
+            val actividadesFromApi = fetchActividadesFromApi(applicationContext, appUuid, email, password)
+            if (actividadesFromApi != null) {
+                Log.d("MainActivity", "Sincronización de actividades exitosa desde el botón.")
+                activitiesSyncSuccess = true
+
+                if (actividadesFromApi.isNotEmpty()) {
+                    remoteNodeUuid = actividadesFromApi.first().uuid_nodo_remoto // Obtener el UUID del nodo remoto
+                } else {
+                    Log.w("MainActivity", "No hay actividades para obtener uuid_nodo_remoto después de la sincronización manual.")
+                    // activitiesSyncSuccess se mantiene true si la llamada fue HTTP_OK pero sin actividades
+                }
+            } else {
+                Log.e("MainActivity", "Fallo en la sincronización de actividades desde el botón.")
+                activitiesSyncSuccess = false
+            }
+
+            // 2. Enviar Nivel de Batería (PATCH) - SOLO SI TENEMOS remoteNodeUuid
+            if (remoteNodeUuid != null) { // No dependemos del éxito del sync de actividades para esto, solo de tener el UUID
+                val batteryLevel = getBatteryLevel(applicationContext)
+                if (batteryLevel != -1) {
+                    batteryUpdateSuccess = sendBatteryLevelToApi(remoteNodeUuid, batteryLevel, email, password)
+                    if (batteryUpdateSuccess) {
+                        Log.d("MainActivity", "Nivel de batería ($batteryLevel%) enviado a Drupal desde el botón para nodo $remoteNodeUuid.")
+                    } else {
+                        Log.e("MainActivity", "Fallo al enviar nivel de batería ($batteryLevel%) a Drupal desde el botón para nodo $remoteNodeUuid.")
+                    }
+                } else {
+                    Log.w("MainActivity", "No se pudo obtener el nivel de batería. No se enviará a Drupal desde el botón.")
+                    batteryUpdateSuccess = false
+                }
+            } else {
+                Log.w("MainActivity", "No se intentará enviar nivel de batería desde el botón debido a falta de uuid_nodo_remoto.")
+                batteryUpdateSuccess = false
+            }
+
+            withContext(Dispatchers.Main) {
+                if (activitiesSyncSuccess && batteryUpdateSuccess) {
+                    Toast.makeText(applicationContext, "Sincronización completa y batería enviada.", Toast.LENGTH_SHORT).show()
+                } else if (activitiesSyncSuccess) {
+                    Toast.makeText(applicationContext, "Actividades sincronizadas, pero fallo al enviar batería.", Toast.LENGTH_LONG).show()
+                } else if (batteryUpdateSuccess) {
+                    Toast.makeText(applicationContext, "Batería enviada, pero fallo al sincronizar actividades.", Toast.LENGTH_LONG).show()
+                }
+                else {
+                    Toast.makeText(applicationContext, "Fallo en la sincronización y envío de batería.", Toast.LENGTH_LONG).show()
                 }
             }
         }

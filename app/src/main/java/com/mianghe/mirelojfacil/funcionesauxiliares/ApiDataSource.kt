@@ -12,8 +12,10 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.time.DayOfWeek // Importar DayOfWeek
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.WeekFields // Importar WeekFields
@@ -21,6 +23,7 @@ import java.util.Locale // Importar Locale
 
 private val json = Json { ignoreUnknownKeys = true }
 private val apiDateFormat = DateTimeFormatter.ofPattern("dd-MM-yyyy")
+
 
 /**
  * Realiza una llamada a la API de actividades con autenticación básica y actualiza la base de datos Room.
@@ -155,6 +158,75 @@ suspend fun fetchActividadesFromApi(context: Context, uuid: String, email: Strin
     } catch (e: Exception) {
         Log.e("ApiDataSource", "Error en la llamada a la API o al parsear JSON: ${e.message}", e)
         return null
+    } finally {
+        connection?.disconnect()
+    }
+}
+
+/**
+ * Envía el nivel de batería del dispositivo a la API de Drupal mediante una solicitud PATCH.
+ * @param remoteUuid El UUID del dispositivo (nodo) en Drupal (el uuid_nodo_remoto).
+ * @param batteryLevel El nivel actual de batería (0-100).
+ * @param email El email para la autenticación básica.
+ * @param password La contraseña para la autenticación básica.
+ * @return True si la actualización fue exitosa, False en caso contrario.
+ */
+suspend fun sendBatteryLevelToApi(remoteUuid: String, batteryLevel: Int, email: String, password: String): Boolean {
+    val apiUrl = "https://mirelojfacil.ddns.net/jsonapi/node/dispositivo/$remoteUuid"
+    var connection: HttpURLConnection? = null
+    try {
+        val url = URL(apiUrl)
+        connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = "PATCH" // Método PATCH
+        connection.setRequestProperty("Content-Type", "application/vnd.api+json") // Tipo de contenido JSON:API
+        connection.setRequestProperty("Accept", "application/vnd.api+json") // Tipo de aceptación JSON:API
+        connection.connectTimeout = 10000
+        connection.readTimeout = 10000
+
+        // Autenticación Básica
+        val credentials = "$email:$password"
+        val authString = Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
+        connection.setRequestProperty("Authorization", "Basic $authString")
+
+        val currentTimestamp = System.currentTimeMillis() / 1000
+        //val encodedSyncDateTime = URLEncoder.encode(currentSyncDateTime, "UTF-8")
+
+        // Construir el cuerpo de la solicitud JSON
+        val jsonBody = """
+            {
+                "data": {
+                    "type": "node--dispositivo",
+                    "id": "$remoteUuid",
+                    "attributes": {
+                        "field_nivel_bateria": $batteryLevel,
+                        "field_fecha_sincronizacion": "$currentTimestamp"
+                    }
+                }
+            }
+        """.trimIndent()
+
+        Log.d("ApiDataSource", "Enviando PATCH a $apiUrl con body: $jsonBody")
+
+        // Escribir el cuerpo de la solicitud
+        connection.outputStream.use { os ->
+            val input = jsonBody.toByteArray(Charsets.UTF_8)
+            os.write(input, 0, input.size)
+        }
+
+        val responseCode = connection.responseCode
+        if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_NO_CONTENT) {
+            // HTTP_OK (200) o HTTP_NO_CONTENT (204) son respuestas exitosas para PATCH
+            Log.d("ApiDataSource", "Nivel de batería actualizado exitosamente. Respuesta: $responseCode")
+            return true
+        } else {
+            val errorStream = connection.errorStream
+            val errorResponse = errorStream?.bufferedReader()?.use { it.readText() } ?: "No error message"
+            Log.e("ApiDataSource", "Error al actualizar nivel de batería: $responseCode - ${connection.responseMessage}. Body: $errorResponse")
+            return false
+        }
+    } catch (e: Exception) {
+        Log.e("ApiDataSource", "Excepción al enviar nivel de batería: ${e.message}", e)
+        return false
     } finally {
         connection?.disconnect()
     }

@@ -42,7 +42,6 @@ class ActividadAdapter(private var actividades: List<ActividadEntity>,
         holder.tvHora.typeface = Typeface.DEFAULT // Typeface.DEFAULT o DEFAULT_BOLD
         holder.itemLayout.background = ContextCompat.getDrawable(holder.itemView.context, R.drawable.fondo_actividad)
 
-
         holder.tvMensaje.setTextColor(ContextCompat.getColor(context, R.color.gris_oscuro)) // Color original
         holder.tvHora.setTextColor(ContextCompat.getColor(context, R.color.gris_oscuro))     // Color original
         holder.itemLayout.background = ContextCompat.getDrawable(context, R.drawable.fondo_actividad)
@@ -53,14 +52,13 @@ class ActividadAdapter(private var actividades: List<ActividadEntity>,
         // Formatear la hora a HH:MM
         try {
             // Asumimos que actividad.horaAplicacion ya está en formato "HH:MM" (e.g., "22:00")
-            // Si viene en otro formato (e.g., "21:18:00"), puedes parsearlo primero.
+            // Si viene en otro formato (e.g., "21:18:00"), se puede parsear primero.
             // Para "HH:MM" directamente:
             val horaFormateada = actividad.horaAplicacion // Ya debería estar en HH:MM
             holder.tvHora.text = horaFormateada
         } catch (e: Exception) {
             // En caso de que el formato de hora no sea el esperado
             holder.tvHora.text = actividad.horaAplicacion // Muestra el valor original como fallback
-            //Log.e("ActividadAdapter", "Error al formatear hora: ${actividad.horaAplicacion}", e)
         }
         // Lógica de resaltado
         activeHour?.let { currentActiveHour ->
@@ -75,7 +73,6 @@ class ActividadAdapter(private var actividades: List<ActividadEntity>,
 
                 // La actividad está activa si su hora (sin minutos) coincide con la hora actual (sin minutos)
                 val isCurrentActivityActive = itemHourTruncated.equals(currentHourTruncated)
-                // ********************************************************************
 
                 if (isCurrentActivityActive) {
                     holder.tvMensaje.typeface = Typeface.DEFAULT_BOLD
@@ -102,8 +99,8 @@ class ActividadAdapter(private var actividades: List<ActividadEntity>,
         notifyDataSetChanged()
     }
 
-    // NUEVA FUNCIÓN para establecer la hora activa y refrescar la lista
-    fun setActiveHour(hour: LocalTime?) { // <-- NUEVA FUNCIÓN
+    // FUNCIÓN para establecer la hora activa y refrescar la lista
+    fun setActiveHour(hour: LocalTime?) {
         if (activeHour != hour) { // Solo si la hora ha cambiado
             this.activeHour = hour
             notifyDataSetChanged() // Esto redibujará los ítems y aplicará el resaltado

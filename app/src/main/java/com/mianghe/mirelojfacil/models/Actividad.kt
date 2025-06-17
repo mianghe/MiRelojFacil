@@ -12,5 +12,7 @@ data class Actividad(
     @SerialName("field_fecha_aplicacion_1")
     val horaAplicacion: String,
     @SerialName("nothing")
-    val periodicidad: String
+    val periodicidad: String,
+    @SerialName("uuid")
+    val uuid_nodo_remoto: String
 )

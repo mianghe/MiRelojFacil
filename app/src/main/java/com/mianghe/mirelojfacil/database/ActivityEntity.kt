@@ -11,7 +11,8 @@ data class ActividadEntity(
     val mensaje: String,
     val fechaAplicacion: String,
     val horaAplicacion: String,
-    val periodicidad: String
+    val periodicidad: String,
+    val uuid_nodo_remoto: String
 )
 
 // Opcional: Funciones de mapeo para convertir entre el modelo de red y el modelo de base de datos
@@ -20,7 +21,8 @@ fun Actividad.toEntity(): ActividadEntity {
         mensaje = this.mensaje,
         fechaAplicacion = this.fechaAplicacion,
         horaAplicacion = this.horaAplicacion,
-        periodicidad = this.periodicidad
+        periodicidad = this.periodicidad,
+        uuid_nodo_remoto = this.uuid_nodo_remoto
     )
 }
 

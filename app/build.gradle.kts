@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.mianghe.mirelojfacil"
-        minSdk = 26 //23
+        minSdk = 27 //23
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"

@@ -1,6 +1,9 @@
 package com.mianghe.mirelojfacil.funcionesauxiliares
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.util.Log
 import com.mianghe.mirelojfacil.adapters.ActividadAdapter
 import com.mianghe.mirelojfacil.database.AppDatabase
@@ -28,3 +31,21 @@ import kotlinx.coroutines.withContext
         }
     }
 }*/
+// Obtiene el nivel de batería
+/**
+ * Obtiene el nivel de batería actual del dispositivo.
+ * @param context El contexto para registrar el BroadcastReceiver.
+ * @return El nivel de batería como un entero (0-100), o -1 si no se pudo obtener.
+ */
+fun getBatteryLevel(context: Context): Int { // No es 'suspend' porque no bloquea
+    val batteryIntent: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
+        context.registerReceiver(null, ifilter)
+    }
+
+    val level: Int = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+    val scale: Int = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+
+    val batteryPct = if (level != -1 && scale > 0) (level * 100.0 / scale).toInt() else -1
+    // Log.d("FuncionesAuxiliares", "Nivel de batería obtenido: $batteryPct%")
+    return batteryPct
+}
