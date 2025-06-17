@@ -5,32 +5,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Log
-import com.mianghe.mirelojfacil.adapters.ActividadAdapter
-import com.mianghe.mirelojfacil.database.AppDatabase
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
-/**
- * Carga las actividades desde la base de datos Room y actualiza el RecyclerView a través del adaptador.
- * Debe llamarse desde una corrutina en Dispatchers.IO para la operación de base de datos,
- * y luego cambiar a Dispatchers.Main para la actualización del adaptador.
- *
- * @param context El contexto de la aplicación para acceder a la base de datos.
- * @param actividadAdapter El adaptador del RecyclerView a actualizar.
- */
-/*suspend fun loadActividadesFromDatabase(context: Context, actividadAdapter: ActividadAdapter) {
-    // La operación de base de datos debe hacerse en un hilo de fondo (Dispatchers.IO)
-    withContext(Dispatchers.IO) {
-        val database = AppDatabase.getDatabase(context)
-        val actividades = database.actividadDao().getAllActividades()
-
-        // La actualización del adaptador (operación de UI) debe hacerse en el hilo principal (Dispatchers.Main)
-        withContext(Dispatchers.Main) {
-            actividadAdapter.updateActividades(actividades)
-            Log.d("FuncionesAuxiliares", "Actividades cargadas desde DB: ${actividades.size}")
-        }
-    }
-}*/
 // Obtiene el nivel de batería
 /**
  * Obtiene el nivel de batería actual del dispositivo.
@@ -48,4 +25,50 @@ fun getBatteryLevel(context: Context): Int { // No es 'suspend' porque no bloque
     val batteryPct = if (level != -1 && scale > 0) (level * 100.0 / scale).toInt() else -1
     // Log.d("FuncionesAuxiliares", "Nivel de batería obtenido: $batteryPct%")
     return batteryPct
+}
+// Obtiene el nivel de batería
+/*private fun getBatteryLevel(): Int {
+    val batteryIntent = applicationContext.registerReceiver(
+        null,
+        IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+    )
+    val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+    val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+    return if (level != -1 && scale > 0) (level * 100.0 / scale).toInt() else -1
+}*/
+
+private val thingSpeakApiKey = "KX88XIUP4Y15K1KZ" // API Key
+private val thingSpeakChannelId = "2954890" // Channel ID
+
+// Envía el nivel de batería a ThingSpeak
+private fun sendBatteryLevelToThingSpeak(level: Int) {
+    if (level != -1) {
+        val field = "field1" // Oscal
+        //val field = "field2" // Android Studio
+        //val field = "field3" // Samsung
+        val thingSpeakUrl =
+            "https://api.thingspeak.com/update?api_key=$thingSpeakApiKey&$field=$level"
+        try {
+            val url = URL(thingSpeakUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET" // O "POST" si prefieres
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                Log.d(
+                    "MedioPlazoWorker",
+                    "Battery level ($level%) sent to ThingSpeak successfully"
+                )
+            } else {
+                Log.e(
+                    "MedioPlazoWorker",
+                    "Failed to send data to ThingSpeak. Response code: $responseCode"
+                )
+            }
+            connection.disconnect()
+        } catch (e: Exception) {
+            Log.e("MedioPlazoWorker", "Error sending data to ThingSpeak", e)
+        }
+    } else {
+        Log.w("MedioPlazoWorker", "Could not retrieve battery level.")
+    }
 }

@@ -1,4 +1,4 @@
-package com.mianghe.mirelojfacil.network
+package com.mianghe.mirelojfacil.funcionesauxiliares
 
 import android.content.Context
 import android.util.Base64
@@ -8,18 +8,12 @@ import com.mianghe.mirelojfacil.database.ActividadEntity
 import com.mianghe.mirelojfacil.database.AppDatabase
 import com.mianghe.mirelojfacil.database.toEntityList
 import com.mianghe.mirelojfacil.models.Actividad
-import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
-import java.time.DayOfWeek // Importar DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
-import java.time.temporal.WeekFields // Importar WeekFields
-import java.util.Locale // Importar Locale
 
 private val json = Json { ignoreUnknownKeys = true }
 private val apiDateFormat = DateTimeFormatter.ofPattern("dd-MM-yyyy")
@@ -79,7 +73,7 @@ suspend fun fetchActividadesFromApi(context: Context, uuid: String, email: Strin
                 try {
                     val actividadDate = LocalDate.parse(actividad.fechaAplicacion, apiDateFormat)
 
-                    // Caso especial: periodicidad es "0000000"
+                    // Caso especial: periodicidad es "0000000" indica que la actividad no se repite y solo se muestra en su fecha
                     if (actividad.periodicidad == "0000000") {
                         if (actividadDate.isEqual(today)) {
                             isValid = true
@@ -93,16 +87,6 @@ suspend fun fetchActividadesFromApi(context: Context, uuid: String, email: Strin
                         // Comprobar si el carácter correspondiente al día de la semana actual es '1'
                         if (actividad.periodicidad[currentDayOfWeekIndex] == '1') {
                             isValid = true
-                            // También podemos añadir un filtro para no mostrar actividades futuras
-                            // si la periodicidad es por día de la semana.
-                            // Si quieres mostrar solo las actividades del día actual, que tienen '1'
-                            // y que su fecha no sea en el pasado, puedes añadir:
-                            /*if (!actividadDate.isBefore(today)) { // No mostrar si es fecha pasada
-                                isValid = true
-                                Log.d("ApiDataSource", "Actividad '${actividad.mensaje}' mostrada: Periodicidad activa para hoy y fecha válida.")
-                            } else {
-                                Log.d("ApiDataSource", "Actividad '${actividad.mensaje}' descartada: Periodicidad activa pero fecha ya pasó (${actividad.fechaAplicacion}).")
-                            }*/
                         } else {
                             Log.d("ApiDataSource", "Actividad '${actividad.mensaje}' descartada: Periodicidad no activa para hoy.")
                         }
@@ -117,25 +101,11 @@ suspend fun fetchActividadesFromApi(context: Context, uuid: String, email: Strin
 
                 isValid // Retorna si la actividad debe ser incluida en la lista procesada
             }
-            // ***************************************************************
 
             Log.d("ApiDataSource", "Actividades procesadas/filtradas: $processedActividades")
 
             // Si después del filtro no quedan actividades válidas, la base de datos se vaciará.
-            // Para que no se vacíe si el filtro devuelve 0 resultados, puedes añadir un 'if' aquí
-            // y solo proceder con la transacción si processedActividades no está vacía.
-            /*if (processedActividades.isEmpty()) {
-                Log.d("ApiDataSource", "No hay actividades válidas para guardar después del procesamiento. Vaciando la tabla de Room.")
-                try {
-                    database.runInTransaction {
-                        actividadDao.deleteAll() // Vaciar la tabla si no hay actividades válidas
-                    }
-                    return emptyList() // Retorna una lista vacía para indicar que no hay actividades
-                } catch (dbError: Exception) {
-                    Log.e("ApiDataSource", "Error al vaciar la base de datos Room: ${dbError.message}", dbError)
-                    return null // Si falla la DB, la operación completa falló
-                }
-            }*/
+            // OJO REVISAR Cuidado con esto porque para la sincronización toma la UUID remota de la primera actividad
 
             // Mapear a entidad de Room y guardar en la base de datos
             val actividadesEntity: List<ActividadEntity> = processedActividades.toEntityList()
@@ -177,7 +147,7 @@ suspend fun sendBatteryLevelToApi(remoteUuid: String, batteryLevel: Int, email: 
     try {
         val url = URL(apiUrl)
         connection = url.openConnection() as HttpURLConnection
-        connection.requestMethod = "PATCH" // Método PATCH
+        connection.requestMethod = "PATCH" // Envío con PATCH
         connection.setRequestProperty("Content-Type", "application/vnd.api+json") // Tipo de contenido JSON:API
         connection.setRequestProperty("Accept", "application/vnd.api+json") // Tipo de aceptación JSON:API
         connection.connectTimeout = 10000
@@ -189,7 +159,6 @@ suspend fun sendBatteryLevelToApi(remoteUuid: String, batteryLevel: Int, email: 
         connection.setRequestProperty("Authorization", "Basic $authString")
 
         val currentTimestamp = System.currentTimeMillis() / 1000
-        //val encodedSyncDateTime = URLEncoder.encode(currentSyncDateTime, "UTF-8")
 
         // Construir el cuerpo de la solicitud JSON
         val jsonBody = """

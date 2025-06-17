@@ -9,4 +9,8 @@
     <string name="dia_de_madrugada">de madrugada</string>
     <string name="boton_configuracion">Configuración</string>
     <string name="title_activity_configuracion">ConfiguracionActivity</string>
+    <string name="formato_24h">Formato 24h</string>
+    <string name="ver_barra_colores">Ver barra de colores</string>
+    <string name="ver_linea_movimiento">Ver linea de movimiento</string>
+    <string name="nivel_bateria_desconocido">Batería: --%</string>
 </resources>

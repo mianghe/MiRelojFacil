@@ -2,7 +2,7 @@ package com.mianghe.mirelojfacil.database
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.mianghe.mirelojfacil.models.Actividad // Si quieres un mapper, lo usaremos
+import com.mianghe.mirelojfacil.models.Actividad
 
 @Entity(tableName = "actividades")
 data class ActividadEntity(
@@ -15,7 +15,7 @@ data class ActividadEntity(
     val uuid_nodo_remoto: String
 )
 
-// Opcional: Funciones de mapeo para convertir entre el modelo de red y el modelo de base de datos
+// Funciones de mapeo para convertir entre el modelo de red y el modelo de base de datos
 fun Actividad.toEntity(): ActividadEntity {
     return ActividadEntity(
         mensaje = this.mensaje,

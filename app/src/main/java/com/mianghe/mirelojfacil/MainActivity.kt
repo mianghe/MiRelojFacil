@@ -11,10 +11,8 @@ import android.icu.util.Calendar
 import android.os.BatteryManager
 import android.os.Bundle
 import android.util.Log
-import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -41,12 +39,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import com.mianghe.mirelojfacil.network.fetchActividadesFromApi
+import com.mianghe.mirelojfacil.funcionesauxiliares.fetchActividadesFromApi
 import com.mianghe.mirelojfacil.workers.MedioPlazoWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -62,13 +59,11 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.mianghe.mirelojfacil.adapters.ActividadAdapter
 import com.mianghe.mirelojfacil.database.AppDatabase
-import com.mianghe.mirelojfacil.database.ActividadEntity
-import com.mianghe.mirelojfacil.network.sendBatteryLevelToApi
-import java.time.LocalDate
+import com.mianghe.mirelojfacil.funcionesauxiliares.sendBatteryLevelToApi
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import com.mianghe.mirelojfacil.funcionesauxiliares.getBatteryLevel
+
 //DataStore
 val Context.dataStore by preferencesDataStore(name = "USER_PREFERENCES")
 
@@ -102,11 +97,12 @@ class MainActivity : AppCompatActivity() {
     // REFERENCIA AL PANEL IZQUIERDO
     private lateinit var leftPanel: ConstraintLayout
 
-    //private val apiDateFormat = DateTimeFormatter.ofPattern("dd-MM-yyyy") // El mismo que en ApiDataSource.kt
-    private val apiTimeFormat = DateTimeFormatter.ofPattern("HH:mm") // Formato de la hora que viene de la API
+    private val apiTimeFormat =
+        DateTimeFormatter.ofPattern("HH:mm") // Formato de la hora que viene de la API
 
-    private var lastActiveActivityPosition: Int = -1
-
+    // Esta tarea se ejecuta cada minuto
+    // Hay trabajo para hacer aquí
+    // TODO Revisar esta tarea periódica que fue de las primeras funciones programadas ¿Es necesario obtener la ubicación cada 60 segundos?
     fun iniciarTareaPeriodica() {
         timer?.cancel()
         timer = Timer()
@@ -169,7 +165,7 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_main)
 
-        // Mantener la pantalla encendida
+        // Mantener la pantalla encendida todo el tiempo
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main_root_layout)) { v, insets ->
@@ -203,7 +199,8 @@ class MainActivity : AppCompatActivity() {
         leftPanel = findViewById(R.id.left_panel)
 
         // Configurar ImageView de sincronización
-        ivSyncActivities = findViewById(R.id.iv_sync_activities) // Obtener referencia al nuevo ImageView
+        ivSyncActivities =
+            findViewById(R.id.iv_sync_activities) // Obtener referencia al nuevo ImageView
         ivSyncActivities.setOnClickListener {
             lifecycleScope.launch { // Esto inicia una corrutina en el Dispatcher predeterminado (Main)
                 performSyncOperation() // Ahora puedes llamar a performSyncOperation()
@@ -221,7 +218,7 @@ class MainActivity : AppCompatActivity() {
                         val actividadMinutesOfDay = actividadTime.toSecondOfDay() / 60
                         val nowMinutesOfDay = nowTime.toSecondOfDay() / 60
 
-                        val hoursLimit = 7
+                        val hoursLimit = 7 // Las actividades que tengan más de 7 horas de antigüedad no se mostrarán
                         val showActivity: Boolean
 
                         if (actividadMinutesOfDay <= nowMinutesOfDay) {
@@ -232,46 +229,21 @@ class MainActivity : AppCompatActivity() {
                         }
                         showActivity
                     } catch (e: Exception) {
-                        Log.e("MainActivity", "Error al procesar hora de actividad para filtro de antigüedad: ${actividad.mensaje}. Descartando.", e)
+                        Log.e(
+                            "MainActivity",
+                            "Error al procesar hora de actividad para filtro de antigüedad: ${actividad.mensaje}. Descartando.",
+                            e
+                        )
                         false
                     }
                 }
 
                 withContext(Dispatchers.Main) {
                     actividadAdapter.updateActividades(filteredActividades)
-                    Log.d("MainActivity", "RecyclerView actualizado con ${filteredActividades.size} actividades (filtradas por 8h).")
-
-                    // *** Lógica para centrar la actividad activa ***
-                    /*val currentActiveHour = LocalTime.now() // Obtener la hora actual nuevamente para la búsqueda
-                    val layoutManager = recyclerViewActividades.layoutManager as LinearLayoutManager
-                    var newActivePosition = -1
-
-                    for (i in filteredActividades.indices) {
-                        try {
-                            val itemHourParsed = LocalTime.parse(filteredActividades[i].horaAplicacion, apiTimeFormat)
-                            val currentHourTruncated = currentActiveHour.withMinute(0).withSecond(0).withNano(0)
-                            val itemHourTruncated = itemHourParsed.withMinute(0).withSecond(0).withNano(0)
-
-                            if (itemHourTruncated.equals(currentHourTruncated)) {
-                                newActivePosition = i
-                                break // Encontramos la primera actividad para la hora actual
-                            }
-                        } catch (e: Exception) {
-                            Log.e("MainActivity", "Error al buscar actividad activa para desplazamiento: ${filteredActividades[i].mensaje}", e)
-                        }
-                    }
-
-                    if (newActivePosition != -1 && newActivePosition != lastActiveActivityPosition) { // Solo desplazar si la activa cambió
-                        val itemHeight = layoutManager.findViewByPosition(newActivePosition)?.height ?: 0
-                        val offset = recyclerViewActividades.height / 2 - itemHeight / 2
-                        layoutManager.scrollToPositionWithOffset(newActivePosition, offset)
-                        lastActiveActivityPosition = newActivePosition // Actualizar la última posición activa
-                        Log.d("MainActivity", "Desplazando a la actividad activa en posición: $newActivePosition")
-                    } else if (newActivePosition == -1 && lastActiveActivityPosition != -1) {
-                        // Si ya no hay actividad activa pero antes sí, reseteamos la posición
-                        lastActiveActivityPosition = -1
-                    }*/
-                    // ************************************************
+                    Log.d(
+                        "MainActivity",
+                        "RecyclerView actualizado con ${filteredActividades.size} actividades (filtradas por 8h)."
+                    )
 
                     val orientation = resources.configuration.orientation
                     if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
@@ -286,96 +258,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        /*lifecycleScope.launch {
-            appDatabase.actividadDao().getAllActividades().collect { actividades ->
-                withContext(Dispatchers.Main) {
-                    actividadAdapter.updateActividades(actividades)
-                    Log.d("MainActivity", "RecyclerView actualizado por Flow de DB: ${actividades.size} actividades.")
-                    // *** APLICAR LÓGICA DE ANCHO DEL PANEL IZQUIERDO SOLO SI ESTAMOS EN LANDSCAPE ***
-                    val orientation = resources.configuration.orientation
-                    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                        updateLeftPanelWidth(actividades.isEmpty())
-                    } else {
-                        // En Portrait, dejamos que el XML haga su trabajo.
-                        // Solo aseguramos que RecyclerView esté oculto si el panel debería estarlo.
-                        if (actividades.isEmpty()) {
-                            recyclerViewActividades.visibility = View.GONE
-                        } else {
-                            recyclerViewActividades.visibility = View.VISIBLE
-                        }
-                    }
-                }
-            }
-        }*/
 
-        /*lifecycleScope.launch {
-            appDatabase.actividadDao().getAllActividades().collect { rawActividades ->
-                val filteredActividades = rawActividades.filter { actividad ->
-                    try {
-                        val actividadTime = LocalTime.parse(actividad.horaAplicacion, apiTimeFormat)
-                        val nowTime = LocalTime.now()
-
-                        // Calcular la diferencia en horas solo con el componente de la hora
-                        // Usaremos la diferencia en minutos para mayor precisión
-                        val diffMinutes = ChronoUnit.MINUTES.between(actividadTime, nowTime)
-
-                        // Lógica: La actividad se mostrará si:
-                        // 1. Es una actividad que ya pasó HOY, pero tiene menos de 8 horas de antigüedad.
-                        // 2. Es una actividad que pasará HOY (es futura).
-
-                        // Convertimos a minutos para manejar el "wrap around" de la medianoche
-                        val actividadMinutesOfDay = actividadTime.toSecondOfDay() / 60
-                        val nowMinutesOfDay = nowTime.toSecondOfDay() / 60
-
-                        val hoursLimit = 8 // Límite de 8 horas
-
-                        val showActivity: Boolean
-
-                        // Caso 1: La hora de la actividad es <= a la hora actual
-                        if (actividadMinutesOfDay <= nowMinutesOfDay) {
-                            val elapsedHours = (nowMinutesOfDay - actividadMinutesOfDay) / 60
-                            showActivity = elapsedHours < hoursLimit
-                            Log.d("MainActivityFilter", "Actividad '${actividad.mensaje}' (${actividad.horaAplicacion}). Ahora ${nowTime}. Pasadas: $elapsedHours hrs. Mostrada: $showActivity (Antigüedad).")
-                        } else {
-                            // Caso 2: La hora de la actividad es > a la hora actual (implica que es para mañana o ya se procesó para hoy y no es para hoy)
-                            // En esta lógica de "solo hora", una actividad a las 23:00 de ayer no es "futura" a las 01:00 de hoy.
-                            // Aquí se consideraría "futura" si hoy es Lunes 10:00 y la actividad es Lunes 11:00.
-                            // Pero si hoy es Lunes 10:00 y la actividad es Domingo 23:00, ya no es "futura".
-                            // Dada la ambigüedad, lo más sencillo es considerar que si 'periodicidad' ya dice que es para HOY,
-                            // y la hora de la actividad es posterior a la actual, es "futura" HOY.
-                            // Si periodicidad no es '0000000', entonces la actividad es para HOY.
-                            // Si la hora de la actividad es mayor que la hora actual, la mostramos.
-                            showActivity = true // Mostrar si la hora de la actividad es posterior a la actual
-                            Log.d("MainActivityFilter", "Actividad '${actividad.mensaje}' (${actividad.horaAplicacion}). Ahora ${nowTime}. Considerada futura. Mostrada: $showActivity.")
-                        }
-
-                        // Esto es solo para el filtro de antigüedad en la UI.
-                        // La periodicidad por día de la semana (L-D) o fecha "0000000" ya se aplicó en ApiDataSource.kt.
-                        // Aquí solo decidimos si la actividad "reciente" debe mostrarse por su hora del día.
-                        showActivity
-
-                    } catch (e: Exception) {
-                        Log.e("MainActivity", "Error al procesar hora de actividad para filtro de antigüedad: ${actividad.mensaje}. Descartando.", e)
-                        false // Descartar actividades con errores de hora
-                    }
-                }
-
-                withContext(Dispatchers.Main) {
-                    actividadAdapter.updateActividades(filteredActividades)
-                    Log.d("MainActivity", "RecyclerView actualizado con ${filteredActividades.size} actividades (filtradas por 8h).")
-                    val orientation = resources.configuration.orientation
-                    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                        updateLeftPanelWidth(filteredActividades.isEmpty())
-                    } else {
-                        if (filteredActividades.isEmpty()) {
-                            recyclerViewActividades.visibility = View.GONE
-                        } else {
-                            recyclerViewActividades.visibility = View.VISIBLE
-                        }
-                    }
-                }
-            }
-        }*/
 
         if (primeraEjecucion) {
             primeraEjecucion = false
@@ -405,23 +288,13 @@ class MainActivity : AppCompatActivity() {
         }
     } // onCreate
 
-    // Función para cargar actividades de la base de datos y actualizar el RecyclerView
-    /*private fun loadActividadesFromDatabase() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val actividades = appDatabase.actividadDao().getAllActividades()
-            withContext(Dispatchers.Main) {
-                actividadAdapter.updateActividades(actividades)
-                Log.d("MainActivity", "Actividades cargadas desde DB: ${actividades.size}")
-            }
-        }
-    }*/
-
-    // NUEVA FUNCIÓN PARA AJUSTAR EL ANCHO DEL PANEL IZQUIERDO
+    // Ajustar la anchura del panel izquierdo
+    // Si no hay actividades se esconde dejando una anchura mínima para el botón de sincronización
     private fun updateLeftPanelWidth(isEmpty: Boolean) {
         val params = leftPanel.layoutParams as LinearLayout.LayoutParams
         if (isEmpty) {
             // Panel izquierdo solo para el icono de sincronización
-            params.width = resources.getDimensionPixelSize(R.dimen.min_panel_width) // Define esta dimensión
+            params.width = resources.getDimensionPixelSize(R.dimen.min_panel_width)
             params.weight = 0f // No ocupa peso, solo su ancho fijo
             recyclerViewActividades.visibility = View.GONE // Ocultar RecyclerView si está vacío
             Log.d("MainActivity", "Panel izquierdo reducido: actividades vacías.")
@@ -435,49 +308,21 @@ class MainActivity : AppCompatActivity() {
         leftPanel.layoutParams = params // Aplicar los nuevos parámetros
     }
 
-    // Función que encapsula la lógica de sincronización para ser reutilizada
-    /*private fun performSyncOperation() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            val preferences = dataStore.data.first()
-            val currentUuid = preferences[PREF_UUID]
-            val currentEmail = preferences[PREF_EMAIL]
-            val currentPassword = preferences[PREF_PASSWORD]
-
-            if (currentUuid.isNullOrEmpty() || currentEmail.isNullOrEmpty() || currentPassword.isNullOrEmpty()) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Error: UUID, email o contraseña no configurados.", Toast.LENGTH_LONG).show()
-                }
-                Log.w("MainActivity", "No se pudo sincronizar: email o contraseña faltan o son incorrectos.")
-                return@launch
-            }
-
-            withContext(Dispatchers.Main) {
-                Toast.makeText(this@MainActivity, "Iniciando sincronización...", Toast.LENGTH_SHORT).show()
-            }
-
-            val actividades = fetchActividadesFromApi(applicationContext, currentUuid, currentEmail, currentPassword)
-
-            withContext(Dispatchers.Main) {
-                if (actividades != null) {
-                    Toast.makeText(this@MainActivity, "Sincronización completada. ${actividades.size} mensajes recibidos.", Toast.LENGTH_LONG).show()
-                    Log.d("MainActivity", "Actividades sincronizadas exitosamente: $actividades")
-                    // El RecyclerView se actualizará automáticamente a través del Flow que ya lo observa.
-                } else {
-                    Toast.makeText(this@MainActivity, "Fallo al sincronizar mensajes. Verifique conexión y credenciales.", Toast.LENGTH_LONG).show()
-                    Log.e("MainActivity", "Fallo al sincronizar actividades.")
-                }
-            }
-        }
-    }*/
-
     private suspend fun performSyncOperation() {
         withContext(Dispatchers.IO) {
             val preferences = try {
                 applicationContext.dataStore.data.first()
             } catch (e: Exception) {
-                Log.e("MainActivity", "Error al leer preferencias de DataStore para sincronización: ${e.message}")
+                Log.e(
+                    "MainActivity",
+                    "Error al leer preferencias de DataStore para sincronización: ${e.message}"
+                )
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(applicationContext, "Error al cargar preferencias para sincronizar.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        applicationContext,
+                        "Error al cargar preferencias para sincronizar.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 return@withContext
             }
@@ -487,9 +332,16 @@ class MainActivity : AppCompatActivity() {
             val password = preferences[PREF_PASSWORD]
 
             if (appUuid.isNullOrEmpty() || email.isNullOrEmpty() || password.isNullOrEmpty()) {
-                Log.w("MainActivity", "UUID de la app, email o contraseña no encontrados. No se realizará la sincronización.")
+                Log.w(
+                    "MainActivity",
+                    "UUID de la app, email o contraseña no encontrados. No se realizará la sincronización."
+                )
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(applicationContext, "Configuración de sincronización incompleta.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        applicationContext,
+                        "Configuración de sincronización incompleta.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 return@withContext
             }
@@ -498,19 +350,28 @@ class MainActivity : AppCompatActivity() {
             var batteryUpdateSuccess = false
             var remoteNodeUuid: String? = null
 
-            // 1. Sincronizar Actividades
+            // Sincronizar Actividades
             withContext(Dispatchers.Main) {
-                Toast.makeText(applicationContext, "Sincronizando actividades...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    applicationContext,
+                    "Sincronizando actividades...",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
-            val actividadesFromApi = fetchActividadesFromApi(applicationContext, appUuid, email, password)
+            val actividadesFromApi =
+                fetchActividadesFromApi(applicationContext, appUuid, email, password)
             if (actividadesFromApi != null) {
                 Log.d("MainActivity", "Sincronización de actividades exitosa desde el botón.")
                 activitiesSyncSuccess = true
 
                 if (actividadesFromApi.isNotEmpty()) {
-                    remoteNodeUuid = actividadesFromApi.first().uuid_nodo_remoto // Obtener el UUID del nodo remoto
+                    remoteNodeUuid =
+                        actividadesFromApi.first().uuid_nodo_remoto // Obtener el UUID del nodo remoto
                 } else {
-                    Log.w("MainActivity", "No hay actividades para obtener uuid_nodo_remoto después de la sincronización manual.")
+                    Log.w(
+                        "MainActivity",
+                        "No hay actividades para obtener uuid_nodo_remoto después de la sincronización manual."
+                    )
                     // activitiesSyncSuccess se mantiene true si la llamada fue HTTP_OK pero sin actividades
                 }
             } else {
@@ -518,41 +379,71 @@ class MainActivity : AppCompatActivity() {
                 activitiesSyncSuccess = false
             }
 
-            // 2. Enviar Nivel de Batería (PATCH) - SOLO SI TENEMOS remoteNodeUuid
+            // Enviar Nivel de Batería (PATCH) - SOLO SI TENEMOS remoteNodeUuid
             if (remoteNodeUuid != null) { // No dependemos del éxito del sync de actividades para esto, solo de tener el UUID
                 val batteryLevel = getBatteryLevel(applicationContext)
                 if (batteryLevel != -1) {
-                    batteryUpdateSuccess = sendBatteryLevelToApi(remoteNodeUuid, batteryLevel, email, password)
+                    batteryUpdateSuccess =
+                        sendBatteryLevelToApi(remoteNodeUuid, batteryLevel, email, password)
                     if (batteryUpdateSuccess) {
-                        Log.d("MainActivity", "Nivel de batería ($batteryLevel%) enviado a Drupal desde el botón para nodo $remoteNodeUuid.")
+                        Log.d(
+                            "MainActivity",
+                            "Nivel de batería ($batteryLevel%) enviado a Drupal desde el botón para nodo $remoteNodeUuid."
+                        )
                     } else {
-                        Log.e("MainActivity", "Fallo al enviar nivel de batería ($batteryLevel%) a Drupal desde el botón para nodo $remoteNodeUuid.")
+                        Log.e(
+                            "MainActivity",
+                            "Fallo al enviar nivel de batería ($batteryLevel%) a Drupal desde el botón para nodo $remoteNodeUuid."
+                        )
                     }
                 } else {
-                    Log.w("MainActivity", "No se pudo obtener el nivel de batería. No se enviará a Drupal desde el botón.")
+                    Log.w(
+                        "MainActivity",
+                        "No se pudo obtener el nivel de batería. No se enviará a Drupal desde el botón."
+                    )
                     batteryUpdateSuccess = false
                 }
             } else {
-                Log.w("MainActivity", "No se intentará enviar nivel de batería desde el botón debido a falta de uuid_nodo_remoto.")
+                Log.w(
+                    "MainActivity",
+                    "No se intentará enviar nivel de batería desde el botón debido a falta de uuid_nodo_remoto."
+                )
                 batteryUpdateSuccess = false
             }
 
             withContext(Dispatchers.Main) {
                 if (activitiesSyncSuccess && batteryUpdateSuccess) {
-                    Toast.makeText(applicationContext, "Sincronización completa y batería enviada.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        applicationContext,
+                        "Sincronización completa y batería enviada.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else if (activitiesSyncSuccess) {
-                    Toast.makeText(applicationContext, "Actividades sincronizadas, pero fallo al enviar batería.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        applicationContext,
+                        "Actividades sincronizadas, pero fallo al enviar batería.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 } else if (batteryUpdateSuccess) {
-                    Toast.makeText(applicationContext, "Batería enviada, pero fallo al sincronizar actividades.", Toast.LENGTH_LONG).show()
-                }
-                else {
-                    Toast.makeText(applicationContext, "Fallo en la sincronización y envío de batería.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        applicationContext,
+                        "Batería enviada, pero fallo al sincronizar actividades.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        applicationContext,
+                        "Fallo en la sincronización y envío de batería.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
     }
 
     // Este es el planificador de tareas a Medio plazo (cada 15 minutos)
+    // Se encarga de conectarse mediante llamada a la API del servidor para traerse las actividades
+    // Está definido en MedioPlazoWorker.kt
     private fun planificarTareasMedioPlazo() {
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(false) // Solo ejecutar si la batería no está baja
@@ -573,6 +464,7 @@ class MainActivity : AppCompatActivity() {
             )
     }
 
+    // Obtener la ubicación
     private fun getCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -603,7 +495,6 @@ class MainActivity : AppCompatActivity() {
 
     fun aplicarColoresHora(colorFondo: Int, colorTexto: Int, textoDia: String) {
         val vcMiInfo = findViewById<LinearLayout>(R.id.main_root_layout)
-        //val vcMiInfo = findViewById<ConstraintLayout>(R.id.right_panel)
         val txtDia = findViewById<TextClock>(R.id.txtDia)
         val txtFecha = findViewById<TextClock>(R.id.txtFecha)
         val txtHora = findViewById<TextClock>(R.id.txtHora)
@@ -780,6 +671,7 @@ class MainActivity : AppCompatActivity() {
         view.layoutParams = params
     }
 
+    // Muestra el cuadro de diálogo de configuración
     private fun showConfigDialog() {
         // Creamos un LinearLayout para contener todos los elementos del diálogo
         val dialogLayout = LinearLayout(this).apply {
@@ -830,6 +722,8 @@ class MainActivity : AppCompatActivity() {
         dialogLayout.addView(switch24h)
 
         // Switch para barra de colores
+        // La barra de colores de momento la mantengo porque fue lo primero que probé
+        // pero ahora me parece fea y que no encaja con el resto del diseño
         val switchBarraColores = Switch(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -869,28 +763,10 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             hint = "Contraseña"
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            inputType =
+                android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         dialogLayout.addView(editTextPassword)
-
-        // *** Botón "Sincronizar mensajes" ***
-        //Eliminado porque es redundate, ya tenemos el icono en el panel izquierdo
-        /*val btnSyncMessages = Button(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER_HORIZONTAL // Centrar el botón
-                topMargin = resources.getDimensionPixelSize(R.dimen.dialog_margin_top)
-            }
-            text = "Sincronizar mensajes"
-            setOnClickListener {
-                // Al pulsar, obtenemos las credenciales y el UUID para llamar a la API directamente
-                performSyncOperation() // Llama a la función de sincronización
-            }
-        }
-        dialogLayout.addView(btnSyncMessages)*/
-        // **********************************
 
         // Cargar el estado actual de las preferencias para inicializar los switches y los EditText
         lifecycleScope.launch(Dispatchers.Main) {
@@ -901,7 +777,7 @@ class MainActivity : AppCompatActivity() {
                 editTextEmail.setText(preferences[PREF_EMAIL] ?: "")
                 editTextPassword.setText(preferences[PREF_PASSWORD] ?: "")
                 // El UUID ya se cargó en loadPreferences(), solo lo mostramos aquí
-                tvUUID.text = "UUID de la aplicaciión: ${appUUID}"
+                tvUUID.text = "UUID: ${appUUID}"
 
                 // Aplicar el formato de hora y visibilidad inmediatamente al abrir el diálogo
                 aplicarFormatoTiempo(switch24h.isChecked)
@@ -981,11 +857,15 @@ class MainActivity : AppCompatActivity() {
             preferences[PREF_LINEA_MOVIMIENTO] = isLineMovement
             preferences[PREF_EMAIL] = email
             preferences[PREF_PASSWORD] = password
-            // El UUID no se guarda aquí, ya que se genera una vez en loadPreferences y se persiste en ese momento.
+            // El UUID de la aplicación no se guarda aquí, ya que se genera una vez en loadPreferences y se persiste en ese momento.
         }
-        Log.d("DataStore", "Preferencias guardadas: 24h=$is24h, BarrasColores=$isColorBars, LineaMovimiento=$isLineMovement, Email=$email, Password=$password")
+        Log.d(
+            "DataStore",
+            "Preferencias guardadas: 24h=$is24h, BarrasColores=$isColorBars, LineaMovimiento=$isLineMovement, Email=$email, Password=$password"
+        )
     }
 
+    // TODO REVISAR esta función es redundante está en funcionesauxiliares.kt
     private fun getBatteryPercentage(context: Context): Int {
         val batteryStatus: Intent? = IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { ifilter ->
             context.registerReceiver(null, ifilter)
@@ -1019,13 +899,16 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
-                Log.d("UUID","UUID: $appUUID")
+                Log.d("UUID", "UUID: $appUUID")
 
                 aplicarFormatoTiempo(is24h)
                 aplicarVisibilidadBarraColores(isColorBars)
                 aplicarVisibilidadLineaMovimiento(isLineMovement)
 
-                Log.d("DataStore", "Preferencias cargadas al inicio: 24h=$is24h, BarrasColores=$isColorBars, LineaMovimiento=$isLineMovement, Email=$email, Password=$password")
+                Log.d(
+                    "DataStore",
+                    "Preferencias cargadas al inicio: 24h=$is24h, BarrasColores=$isColorBars, LineaMovimiento=$isLineMovement, Email=$email, Password=$password"
+                )
             }
         }
     }

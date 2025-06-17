@@ -11,7 +11,8 @@ fun horaANumero(hora:Int, minutos:Int):Double {
     return nuevaHora+nuevosMinutos
 }
 
-fun numeroAHora(numero:Double):String {
+//Parece que al final esta función no la vamos a usar
+/*fun numeroAHora(numero:Double):String {
     val horas = numero*24.0
     val digitoHora = floor(horas)
     val minutos = (horas - digitoHora)*60.0
@@ -20,7 +21,7 @@ fun numeroAHora(numero:Double):String {
     val losMinutos:Int = digitoMinutos.toInt()
     //return String.format("%02d:%02d", digitoHora.toInt(), digitoMinutos.toInt())
     return "$laHora:$losMinutos"
-}
+}*/
 
 fun fechaAExcel(fecha: LocalDate): Double {
     val eraExcel = LocalDate.of(1900, 1, 1)

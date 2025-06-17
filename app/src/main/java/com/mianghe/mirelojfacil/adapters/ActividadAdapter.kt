@@ -13,7 +13,6 @@ import com.mianghe.mirelojfacil.R
 import com.mianghe.mirelojfacil.database.ActividadEntity
 import java.time.LocalTime // Para manejar solo la hora
 import java.time.format.DateTimeFormatter // Para formatear la hora
-import java.util.Locale // Importar Locale
 
 class ActividadAdapter(private var actividades: List<ActividadEntity>,
                        private var activeHour: LocalTime? = null) :
@@ -23,8 +22,8 @@ class ActividadAdapter(private var actividades: List<ActividadEntity>,
 
     class ActividadViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val tvMensaje: TextView = itemView.findViewById(R.id.tv_item_mensaje)
-        //val tvFecha: TextView = itemView.findViewById(R.id.tv_item_fecha) // ¡ACTUALIZADO ID!
-        val tvHora: TextView = itemView.findViewById(R.id.tv_item_hora)     // ¡NUEVO ID!
+        //val tvFecha: TextView = itemView.findViewById(R.id.tv_item_fecha) // Ya no usamos la fecha
+        val tvHora: TextView = itemView.findViewById(R.id.tv_item_hora)
         val itemLayout: LinearLayout = itemView.findViewById(R.id.item_root_layout)
     }
 
@@ -60,11 +59,13 @@ class ActividadAdapter(private var actividades: List<ActividadEntity>,
             // En caso de que el formato de hora no sea el esperado
             holder.tvHora.text = actividad.horaAplicacion // Muestra el valor original como fallback
         }
-        // Lógica de resaltado
+        // Lógica de resaltado. Se resalta la actividad mirando solamente la hora sin los minutos
+        // Un problema de esta aproximación es que una actividad que se programe para las XX:45 solo estará activa 15 minutos
+        // Como mejora se sugiere establecer una ventana temporal de 1 hora y media (45 minutos antes y 45 después)
+        // Se complica la lógica porque hay que tener en cuenta el cambio de fecha a partir de las 23:59
         activeHour?.let { currentActiveHour ->
             try {
                 val itemHourParsed = LocalTime.parse(actividad.horaAplicacion, timeParser)
-
                 // Comparar solo la HORA (sin minutos/segundos) ***
                 // Obtener la hora actual redondeada al minuto cero (ej. 11:32 -> 11:00)
                 val currentHourTruncated = currentActiveHour.withMinute(0).withSecond(0).withNano(0)
